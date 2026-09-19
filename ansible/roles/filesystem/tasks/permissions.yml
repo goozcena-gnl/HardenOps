@@ -1,0 +1,22 @@
+---
+- name: Recheck the sensitive path immediately before mutation
+  ansible.builtin.stat:
+    path: "{{ hardenops_control.verification.path }}"
+    follow: false
+  register: filesystem_sensitive_file
+
+- name: Require an existing regular sensitive file
+  ansible.builtin.assert:
+    that:
+      - filesystem_sensitive_file.stat.exists
+      - filesystem_sensitive_file.stat.isreg | default(false)
+      - not filesystem_sensitive_file.stat.islnk | default(false)
+
+- name: Restrict permissions while retaining a stronger existing mode
+  ansible.builtin.file:
+    path: "{{ hardenops_control.verification.path }}"
+    state: file
+    follow: false
+    owner: root
+    group: "{{ hardenops_control.desired_group }}"
+    mode: "{{ hardenops_control.desired_mode }}"

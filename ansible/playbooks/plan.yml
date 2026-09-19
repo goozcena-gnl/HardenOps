@@ -1,0 +1,27 @@
+---
+- name: Plan selected controls without modifying target configuration
+  hosts: hardenops
+  become: true
+  gather_facts: true
+  vars_files:
+    - ../group_vars/all.yml
+  tasks:
+    - name: Validate supported inputs and collect context
+      ansible.builtin.import_tasks: ../tasks/prepare.yml
+    - name: Inspect applicability and current state
+      ansible.builtin.import_tasks: ../tasks/observe.yml
+    - name: Show detected platform and requested profile
+      ansible.builtin.debug:
+        msg:
+          facts: "{{ hardenops_observation.facts }}"
+          profile: "{{ hardenops_level }}"
+          summary: "{{ hardenops_observation.summary }}"
+    - name: Show control decisions and risks
+      ansible.builtin.debug:
+        msg: >-
+          {{ item.id }}: {{ item.result }}; enforcement={{ item.enforcement }};
+          change={{ item.needs_change }}; reboot={{ item.reboot_required }};
+          risk={{ item.risk }}; {{ item.reason }}
+      loop: "{{ hardenops_observation.controls }}"
+      loop_control:
+        label: "{{ item.id }}"

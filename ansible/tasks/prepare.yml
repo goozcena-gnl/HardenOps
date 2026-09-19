@@ -1,0 +1,71 @@
+---
+- name: Select Minimal when no profile was requested
+  ansible.builtin.set_fact:
+    hardenops_level: minimal
+  when: hardenops_level is not defined
+
+- name: Validate the requested profile before loading files
+  ansible.builtin.assert:
+    that:
+      - hardenops_level in ['minimal', 'intermediary']
+    fail_msg: "{{ hardenops_level }} profile is not implemented in HardenOps v0.1. Choose minimal or intermediary."
+
+- name: Require an explicitly supported operating system
+  ansible.builtin.assert:
+    that:
+      - >-
+        (ansible_facts.distribution == 'Ubuntu' and ansible_facts.distribution_version == '24.04') or
+        (ansible_facts.distribution == 'Rocky' and ansible_facts.distribution_major_version == '9')
+    fail_msg: >-
+      Unsupported distribution: {{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }}.
+      Supported in v0.1: Ubuntu 24.04 and Rocky Linux 9.
+
+- name: Validate workload and network declarations
+  ansible.builtin.assert:
+    that:
+      - hardenops_config.workload_profile == 'generic_server'
+      - hardenops_config.network.routing is boolean
+      - hardenops_config.network.ipv6_required is boolean
+    fail_msg: Declare generic_server and explicit boolean network.routing and network.ipv6_required.
+
+- name: Load the source-mapped catalogue
+  ansible.builtin.include_vars:
+    file: "{{ playbook_dir }}/../../controls/anssi_bp_028.yml"
+    name: hardenops_catalog
+
+- name: Load the cumulative profile metadata
+  ansible.builtin.include_vars:
+    file: "{{ playbook_dir }}/../../profiles/{{ hardenops_level }}.yml"
+    name: hardenops_profile
+
+- name: Require an operational profile
+  ansible.builtin.assert:
+    that:
+      - hardenops_profile.implemented | bool
+      - hardenops_profile.name == hardenops_level
+
+- name: Observe pending Debian-family reboot marker
+  ansible.builtin.stat:
+    path: /var/run/reboot-required
+  register: hardenops_reboot_marker
+
+- name: Build the read-only inspector request
+  ansible.builtin.set_fact:
+    hardenops_request:
+      host: "{{ inventory_hostname }}"
+      catalogue:
+        version: "{{ hardenops_catalog.version }}"
+        sha256: "{{ lookup('ansible.builtin.file', playbook_dir + '/../../controls/anssi_bp_028.yml', rstrip=false) | hash('sha256') }}"
+      controls: "{{ hardenops_catalog.controls }}"
+      level: "{{ hardenops_level }}"
+      config: "{{ hardenops_config }}"
+      facts:
+        host: "{{ inventory_hostname }}"
+        distribution: "{{ ansible_facts.distribution }}"
+        distribution_version: "{{ ansible_facts.distribution_version }}"
+        os_family: "{{ ansible_facts.os_family }}"
+        kernel: "{{ ansible_facts.kernel }}"
+        architecture: "{{ ansible_facts.architecture }}"
+        selinux: "{{ ansible_facts.selinux.status | default('unavailable') }}"
+        apparmor: "{{ ansible_facts.apparmor.status | default('unavailable') }}"
+        pending_reboot: "{{ hardenops_reboot_marker.stat.exists if ansible_facts.os_family == 'Debian' else 'not assessed' }}"

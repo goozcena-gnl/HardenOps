@@ -1,0 +1,26 @@
+---
+- name: Enforce supported filesystem sysctls
+  ansible.builtin.include_tasks: ../../kernel/tasks/runtime.yml
+  loop: "{{ hardenops_observation.controls }}"
+  loop_control:
+    loop_var: hardenops_control
+    label: "{{ hardenops_control.id }}"
+  when:
+    - hardenops_control.domain == 'filesystem'
+    - hardenops_control.enforcement == 'AUTOMATED'
+    - hardenops_control.verification.type == 'sysctl'
+    - hardenops_control.result not in ['NOT_APPLICABLE', 'UNSUPPORTED']
+    - hardenops_control.needs_change | bool
+
+- name: Restrict existing sensitive file permissions without broad remediation
+  ansible.builtin.include_tasks: permissions.yml
+  loop: "{{ hardenops_observation.controls }}"
+  loop_control:
+    loop_var: hardenops_control
+    label: "{{ hardenops_control.id }}"
+  when:
+    - hardenops_control.domain == 'filesystem'
+    - hardenops_control.enforcement == 'AUTOMATED'
+    - hardenops_control.verification.type == 'file'
+    - hardenops_control.result not in ['NOT_APPLICABLE', 'UNSUPPORTED']
+    - hardenops_control.needs_change | bool

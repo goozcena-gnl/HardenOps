@@ -1,0 +1,12 @@
+---
+- name: Enforce supported kernel sysctls
+  ansible.builtin.include_tasks: runtime.yml
+  loop: "{{ hardenops_observation.controls }}"
+  loop_control:
+    loop_var: hardenops_control
+    label: "{{ hardenops_control.id }}"
+  when:
+    - hardenops_control.domain == 'kernel'
+    - hardenops_control.enforcement == 'AUTOMATED'
+    - hardenops_control.result not in ['NOT_APPLICABLE', 'UNSUPPORTED']
+    - hardenops_control.needs_change | bool

@@ -1,0 +1,64 @@
+---
+- name: Converge only the filesystem role against disposable fixtures
+  hosts: all
+  gather_facts: true
+  vars:
+    molecule_request:
+      level: minimal
+      config:
+        workload_profile: generic_server
+        network:
+          routing: false
+          ipv6_required: true
+      facts:
+        distribution: "{{ ansible_facts.distribution }}"
+        distribution_version: "{{ ansible_facts.distribution_version }}"
+        os_family: "{{ ansible_facts.os_family }}"
+        kernel: "{{ ansible_facts.kernel }}"
+        architecture: "{{ ansible_facts.architecture }}"
+      controls:
+        - id: test_permissions
+          source:
+            document: Test fixture (not an ANSSI control)
+            recommendation: fixture
+          level: minimal
+          domain: filesystem
+          enforcement:
+            status: AUTOMATED
+          applicability:
+            os_families: [Debian, RedHat]
+          verification:
+            type: file
+            path: /tmp/hardenops-permissions-fixture
+            max_mode: '0640'
+            allowed_groups: [root]
+        - id: test_stricter
+          source:
+            document: Test fixture (not an ANSSI control)
+            recommendation: fixture
+          level: minimal
+          domain: filesystem
+          enforcement:
+            status: AUTOMATED
+          applicability:
+            os_families: [Debian, RedHat]
+          verification:
+            type: file
+            path: /tmp/hardenops-stricter-fixture
+            max_mode: '0640'
+            allowed_groups: [root]
+  pre_tasks:
+    - name: Independently observe real fixture permissions
+      ansible.builtin.command:
+        argv:
+          - "{{ ansible_facts.python.executable }}"
+          - -c
+          - "{{ lookup('ansible.builtin.file', playbook_dir + '/../../../tools/inspect_host.py') }}"
+        stdin: "{{ molecule_request | to_json }}"
+      register: molecule_inspection
+      changed_when: false
+    - name: Resolve role input from fresh observation
+      ansible.builtin.set_fact:
+        hardenops_observation: "{{ molecule_inspection.stdout | from_json }}"
+  roles:
+    - role: filesystem

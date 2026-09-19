@@ -1,0 +1,5 @@
+[tool.pytest.ini_options]
+testpaths = ["tests/unit"]
+pythonpath = ["."]
+addopts = "-ra"
+markers = ["integration: requires an explicitly selected disposable target"]

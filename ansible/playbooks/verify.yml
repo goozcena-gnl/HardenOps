@@ -1,0 +1,19 @@
+---
+- name: Independently verify selected controls and write evidence
+  hosts: hardenops
+  become: true
+  gather_facts: true
+  vars_files:
+    - ../group_vars/all.yml
+  tasks:
+    - name: Validate supported inputs and collect context
+      ansible.builtin.import_tasks: ../tasks/prepare.yml
+    - name: Read actual host state
+      ansible.builtin.import_tasks: ../tasks/observe.yml
+    - name: Write controller-side security evidence
+      ansible.builtin.import_tasks: ../tasks/report.yml
+    - name: Fail verification when a tested control fails
+      ansible.builtin.assert:
+        that:
+          - hardenops_observation.controls | selectattr('result', 'equalto', 'FAIL') | list | length == 0
+        fail_msg: One or more tested controls failed. Review the JSON and Markdown evidence; audits still require review.

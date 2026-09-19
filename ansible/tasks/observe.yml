@@ -1,0 +1,17 @@
+---
+# The target needs only its system Python. Code is streamed through Ansible;
+# no inspector, catalogue or third-party Python package is installed on it.
+- name: Read actual host state independently of Ansible enforcement
+  ansible.builtin.command:
+    argv:
+      - "{{ ansible_facts.python.executable }}"
+      - -c
+      - "{{ lookup('ansible.builtin.file', playbook_dir + '/../../tools/inspect_host.py') }}"
+    stdin: "{{ hardenops_request | to_json }}"
+  register: hardenops_inspection
+  changed_when: false
+  check_mode: false
+
+- name: Decode observed host evidence
+  ansible.builtin.set_fact:
+    hardenops_observation: "{{ hardenops_inspection.stdout | from_json }}"

@@ -1,0 +1,307 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "HardenOps v0.1 selected-control catalogue",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "controls"
+  ],
+  "properties": {
+    "version": {
+      "const": "0.1.0"
+    },
+    "controls": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/control"
+      }
+    }
+  },
+  "$defs": {
+    "control": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "source",
+        "level",
+        "domain",
+        "title",
+        "description",
+        "applicability",
+        "enforcement",
+        "verification",
+        "reversible",
+        "transition",
+        "reboot_required",
+        "risk",
+        "notes"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^bp028_r[1-9][0-9]*_[a-z0-9_]+$"
+        },
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "document",
+            "recommendation",
+            "page"
+          ],
+          "properties": {
+            "document": {
+              "const": "ANSSI-BP-028"
+            },
+            "recommendation": {
+              "type": "string",
+              "pattern": "^R[1-9][0-9]*$"
+            },
+            "page": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 80
+            }
+          }
+        },
+        "level": {
+          "enum": [
+            "minimal",
+            "intermediary",
+            "enhanced",
+            "high"
+          ]
+        },
+        "domain": {
+          "enum": [
+            "accounts",
+            "access_control",
+            "filesystem",
+            "kernel",
+            "logging",
+            "network",
+            "packages",
+            "services"
+          ]
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "notes": {
+          "type": "string",
+          "minLength": 1
+        },
+        "applicability": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "os_families"
+          ],
+          "properties": {
+            "os_families": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "Debian",
+                  "RedHat"
+                ]
+              }
+            },
+            "non_router": {
+              "type": "boolean"
+            },
+            "ipv6_unused": {
+              "type": "boolean"
+            }
+          }
+        },
+        "enforcement": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status"
+          ],
+          "properties": {
+            "status": {
+              "enum": [
+                "AUTOMATED",
+                "VERIFIED",
+                "AUDIT_ONLY",
+                "MANUAL",
+                "FUTURE",
+                "OUT_OF_SCOPE_REFERENCE_REQUIRED"
+              ]
+            },
+            "implementation": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "verification": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "type",
+                "key",
+                "expected",
+                "accepted_values"
+              ],
+              "oneOf": [
+                {
+                  "required": [
+                    "remediable_values"
+                  ]
+                },
+                {
+                  "required": [
+                    "remediable_range"
+                  ]
+                }
+              ],
+              "properties": {
+                "type": {
+                  "const": "sysctl"
+                },
+                "key": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9_]+(\\.[a-z0-9_]+)+$"
+                },
+                "expected": {
+                  "type": "string",
+                  "pattern": "^-?[0-9]+$"
+                },
+                "accepted_values": {
+                  "type": "array",
+                  "minItems": 1,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "pattern": "^-?[0-9]+$"
+                  }
+                },
+                "remediable_values": {
+                  "type": "array",
+                  "minItems": 1,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "pattern": "^-?[0-9]+$"
+                  }
+                },
+                "remediable_range": {
+                  "type": "array",
+                  "minItems": 2,
+                  "maxItems": 2,
+                  "items": {
+                    "type": "integer"
+                  }
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "type",
+                "path",
+                "max_mode",
+                "allowed_groups"
+              ],
+              "properties": {
+                "type": {
+                  "const": "file"
+                },
+                "path": {
+                  "type": "string",
+                  "pattern": "^/[^\\n]+$"
+                },
+                "max_mode": {
+                  "type": "string",
+                  "pattern": "^0[0-7]{3}$"
+                },
+                "allowed_groups": {
+                  "type": "array",
+                  "minItems": 1,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "type",
+                "check"
+              ],
+              "properties": {
+                "type": {
+                  "const": "audit"
+                },
+                "check": {
+                  "enum": [
+                    "accounts",
+                    "packages",
+                    "services",
+                    "filesystem"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "type"
+              ],
+              "properties": {
+                "type": {
+                  "const": "manual"
+                }
+              }
+            }
+          ]
+        },
+        "reversible": {
+          "type": "boolean"
+        },
+        "reboot_required": {
+          "type": "boolean"
+        },
+        "transition": {
+          "enum": [
+            "reversible",
+            "reboot_reversible",
+            "structural",
+            "manual",
+            "destructive",
+            "non_reversible_runtime"
+          ]
+        },
+        "risk": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      }
+    }
+  }
+}

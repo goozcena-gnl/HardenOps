@@ -1,0 +1,9 @@
+---
+profile: production
+exclude_paths:
+  - .venv/
+  - .lab/
+  - .vagrant/
+  - .cache/
+  - .collections/
+  - artifacts/

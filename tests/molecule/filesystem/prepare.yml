@@ -1,0 +1,27 @@
+---
+- name: Prepare test fixtures without touching controller or kernel state
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Bootstrap Python inside the disposable container only
+      ansible.builtin.raw: >-
+        if command -v python3 >/dev/null 2>&1; then exit 0;
+        elif command -v apt-get >/dev/null 2>&1; then
+        apt-get update && apt-get install -y python3 && echo HARDENOPS_PYTHON_INSTALLED;
+        else dnf install -y python3 && echo HARDENOPS_PYTHON_INSTALLED; fi
+      register: molecule_python
+      changed_when: "'HARDENOPS_PYTHON_INSTALLED' in molecule_python.stdout"
+    - name: Create deliberately permissive fixture
+      ansible.builtin.copy:
+        dest: /tmp/hardenops-permissions-fixture
+        content: "disposable test fixture\n"
+        owner: root
+        group: root
+        mode: '0666'
+    - name: Create stricter existing fixture
+      ansible.builtin.copy:
+        dest: /tmp/hardenops-stricter-fixture
+        content: "stricter disposable fixture\n"
+        owner: root
+        group: root
+        mode: '0400'

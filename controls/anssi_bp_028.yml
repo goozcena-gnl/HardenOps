@@ -1,0 +1,827 @@
+---
+# Source pages are printed guide pages, not PDF viewer page numbers.
+# See docs/source-review.md for source hashes and selection decisions.
+version: "0.1.0"
+controls:
+  - id: "bp028_r9_dmesg_restrict"
+    source:
+      document: "ANSSI-BP-028"
+      recommendation: "R9"
+      page: 19
+    level: "intermediary"
+    domain: "kernel"
+    title: "Restrict access to kernel messages"
+    description: "Apply the selected R9 runtime parameter kernel.dmesg_restrict with a minimum baseline of 1."
+    applicability:
+      os_families:
+        - "Debian"
+        - "RedHat"
+    enforcement:
+      status: "AUTOMATED"
+      implementation: "ansible/roles/kernel/tasks/runtime.yml"
+    verification:
+      type: "sysctl"
+      key: "kernel.dmesg_restrict"
+      expected: "1"
+      accepted_values:
+        - "1"
+      remediable_values:
+        - "0"
+    reversible: true
+    transition: "reversible"
+    reboot_required: false
+    risk: "low"
+    notes: "A missing kernel interface is UNSUPPORTED. Verify the live value independently."
+  - id: "bp028_r9_kptr_restrict"
+    source:
+      document: "ANSSI-BP-028"
+      recommendation: "R9"
+      page: 19
+    level: "intermediary"
+    domain: "kernel"
+    title: "Hide kernel pointers"
+    description: "Apply the selected R9 runtime parameter kernel.kptr_restrict with a minimum baseline of 2."
+    applicability:
+      os_families:
+        - "Debian"
+        - "RedHat"
+    enforcement:
+      status: "AUTOMATED"
+      implementation: "ansible/roles/kernel/tasks/runtime.yml"
+    verification:
+      type: "sysctl"
+      key: "kernel.kptr_restrict"
+      expected: "2"
+      accepted_values:
+        - "2"
+      remediable_values:
+        - "0"
+        - "1"
+    reversible: true
+    transition: "reversible"
+    reboot_required: false
+    risk: "low"
+    notes: "A missing kernel interface is UNSUPPORTED. Verify the live value independently."
+  - id: "bp028_r9_perf_event_paranoid"
+    source:
+      document: "ANSSI-BP-028"
+      recommendation: "R9"
+      page: 19
+    level: "intermediary"
+    domain: "kernel"
+    title: "Restrict unprivileged performance monitoring"
+    description: "Apply the selected R9 runtime parameter kernel.perf_event_paranoid with a minimum baseline of 2."
+    applicability:
+      os_families:
+        - "Debian"
+        - "RedHat"
+    enforcement:
+      status: "AUTOMATED"
+      implementation: "ansible/roles/kernel/tasks/runtime.yml"
+    verification:
+      type: "sysctl"
+      key: "kernel.perf_event_paranoid"
+      expected: "2"
+      accepted_values:
+        - "2"
+        - "3"
+        - "4"
+      remediable_values:
+        - "-1"
+        - "0"
+        - "1"
+    reversible: true
+    transition: "reversible"
+    reboot_required: false
+    risk: "low"
+    notes: >-
+      The source lists 2. Preserve supported existing restrictions 3 and 4; do not claim 2 prohibits every perf_event_open
+      call. Other values require review before mutation.
+  - id: "bp028_r9_randomize_va_space"
+    source:
+      document: "ANSSI-BP-028"
+      recommendation: "R9"
+      page: 19
+    level: "intermediary"
+    domain: "kernel"
+    title: "Enable full address-space randomization"
+    description: "Apply the selected R9 runtime parameter kernel.randomize_va_space with a minimum baseline of 2."
+    applicability:
+      os_families:
+        - "Debian"
+        - "RedHat"
+    enforcement:
+      status: "AUTOMATED"
+      implementation: "ansible/roles/kernel/tasks/runtime.yml"
+    verification:
+      type: "sysctl"
+      key: "kernel.randomize_va_space"
+      expected: "2"
+      accepted_values:
+        - "2"
+      remediable_values:
+        - "0"
+        - "1"
+    reversible: true
+    transition: "reversible"
+    reboot_required: false
+    risk: "low"
+    notes: "A missing kernel interface is UNSUPPORTED. Verify the live value independently."
+  - id: "bp028_r9_sysrq"
+    source:
+      document: "ANSSI-BP-028"
+      recommendation: "R9"
+      page: 19
+    level: "intermediary"
+    domain: "kernel"
+    title: "Disable keyboard Magic SysRq operations"
+    description: "Apply the selected R9 runtime parameter kernel.sysrq with a minimum baseline of 0."
+    applicability:
+      os_families:
+        - "Debian"
+        - "RedHat"
+    enforcement:
+      status: "AUTOMATED"
+      implementation: "ansible/roles/kernel/tasks/runtime.yml"
+    verification:
+      type: "sysctl"
+      key: "kernel.sysrq"
+      expected: "0"
+      accepted_values:
+        - "0"
+      remediable_range:
+        - 1
+        - 511
+    reversible: true
+    transition: "reversible"
+    reboot_required: false
+    risk: "medium"
+    notes: >-
+      Disables the keyboard interface; does not disable privileged writes to /proc/sysrq-trigger. Recovery workflows must
+      account for this restriction.
+  - id: "bp028_r11_ptrace_scope"
+    source:
+      document: "ANSSI-BP-028"
+      recommendation: "R11"
+      page: 21
+    level: "intermediary"
+    domain: "kernel"
+    title: "Restrict ptrace through Yama"
+    description: "Apply the selected R11 runtime parameter kernel.yama.ptrace_scope with a minimum baseline of 1."
+    applicability:
+      os_families:
+        - "Debian"
+        - "RedHat"
+    enforcement:
+      status: "AUTOMATED"
+      implementation: "ansible/roles/kernel/tasks/runtime.yml"
+    verification:
+      type: "sysctl"
+      key: "kernel.yama.ptrace_scope"
+      expected: "1"
+      accepted_values:
+        - "1"
+        - "2"
+        - "3"
+      remediable_values:
+        - "0"
+    reversible: true
+    transition: "reversible"
+    reboot_required: false
+    risk: "medium"
+    notes: >-
+      The source requires at least 1. Preserve existing 2 or 3. Setting 3 is irreversible until reboot; HardenOps never
+      upgrades a value to 3. Loading Yama where absent is deferred.
+  - id: "bp028_r12_all_accept_redirects"
+    source:
+      document: "ANSSI-BP-028"
+      recommendation: "R12"
+      page: 21
+    level: "intermediary"
+    domain: "network"
+    title: "Reject IPv4 ICMP redirects (all)"
+    description: "Apply the selected R12 runtime parameter net.ipv4.conf.all.accept_redirects with a minimum baseline of 0."
+    applicability:
+      os_families:
+        - "Debian"
+        - "RedHat"
+      non_router: true
+    enforcement:
+      status: "AUTOMATED"
+      implementation: "ansible/roles/network/tasks/main.yml"
+    verification:
+      type: "sysctl"
+      key: "net.ipv4.conf.all.accept_redirects"
+      expected: "0"
+      accepted_values:
+        - "0"
+      remediable_values:
+        - "1"
+    reversible: true
+    transition: "reversible"
+    reboot_required: false
+    risk: "medium"
+    notes: >-
+      Selected all/default parameter only; this is not full per-interface R12 coverage. The target must use the
+      generic_server non-routing profile. Interface overrides need separate review.
+  - id: "bp028_r12_default_accept_redirects"
+    source:
+      document: "ANSSI-BP-028"
+      recommendation: "R12"
+      page: 21
+    level: "intermediary"
+    domain: "network"
+    title: "Reject IPv4 ICMP redirects (default)"
+    description: >-
+      Apply the selected R12 runtime parameter net.ipv4.conf.default.accept_redirects with a minimum baseline of 0.
+    applicability:
+      os_families:
+        - "Debian"
+        - "RedHat"
+      non_router: true
+    enforcement:
+      status: "AUTOMATED"
+      implementation: "ansible/roles/network/tasks/main.yml"
+    verification:
+      type: "sysctl"
+      key: "net.ipv4.conf.default.accept_redirects"
+      expected: "0"
+      accepted_values:
+        - "0"
+      remediable_values:
+        - "1"
+    reversible: true
+    transition: "reversible"
+    reboot_required: false
+    risk: "medium"
+    notes: >-
+      Selected all/default parameter only; this is not full per-interface R12 coverage. The target must use the
+      generic_server non-routing profile. Interface overrides need separate review.
+  - id: "bp028_r12_all_accept_source_route"
+    source:
+      document: "ANSSI-BP-028"
+      recommendation: "R12"
+      page: 21
+    level: "intermediary"
+    domain: "network"
+    title: "Reject IPv4 source-routing options (all)"
+    description: >-
+      Apply the selected R12 runtime parameter net.ipv4.conf.all.accept_source_route with a minimum baseline of 0.
+    applicability:
+      os_families:
+        - "Debian"
+        - "RedHat"
+      non_router: true
+    enforcement:
+      status: "AUTOMATED"
+      implementation: "ansible/roles/network/tasks/main.yml"
+    verification:
+      type: "sysctl"
+      key: "net.ipv4.conf.all.accept_source_route"
+      expected: "0"
+      accepted_values:
+        - "0"
+      remediable_values:
+        - "1"
+    reversible: true
+    transition: "reversible"
+    reboot_required: false
+    risk: "medium"
+    notes: >-
+      Selected all/default parameter only; this is not full per-interface R12 coverage. The target must use the
+      generic_server non-routing profile. Interface overrides need separate review.
+  - id: "bp028_r12_default_accept_source_route"
+    source:
+      document: "ANSSI-BP-028"
+      recommendation: "R12"
+      page: 21
+    level: "intermediary"
+    domain: "network"
+    title: "Reject IPv4 source-routing options (default)"
+    description: >-
+      Apply the selected R12 runtime parameter net.ipv4.conf.default.accept_source_route with a minimum baseline of 0.
+    applicability:
+      os_families:
+        - "Debian"
+        - "RedHat"
+      non_router: true
+    enforcement:
+      status: "AUTOMATED"
+      implementation: "ansible/roles/network/tasks/main.yml"
+    verification:
+      type: "sysctl"
+      key: "net.ipv4.conf.default.accept_source_route"
+      expected: "0"
+      accepted_values:
+        - "0"
+      remediable_values:
+        - "1"
+    reversible: true
+    transition: "reversible"
+    reboot_required: false
+    risk: "medium"
+    notes: >-
+      Selected all/default parameter only; this is not full per-interface R12 coverage. The target must use the
+      generic_server non-routing profile. Interface overrides need separate review.
+  - id: "bp028_r12_all_send_redirects"
+    source:
+      document: "ANSSI-BP-028"
+      recommendation: "R12"
+      page: 22
+    level: "intermediary"
+    domain: "network"
+    title: "Disable IPv4 ICMP redirect sending (all)"
+    description: "Apply the selected R12 runtime parameter net.ipv4.conf.all.send_redirects with a minimum baseline of 0."
+    applicability:
+      os_families:
+        - "Debian"
+        - "RedHat"
+      non_router: true
+    enforcement:
+      status: "AUTOMATED"
+      implementation: "ansible/roles/network/tasks/main.yml"
+    verification:
+      type: "sysctl"
+      key: "net.ipv4.conf.all.send_redirects"
+      expected: "0"
+      accepted_values:
+        - "0"
+      remediable_values:
+        - "1"
+    reversible: true
+    transition: "reversible"
+    reboot_required: false
+    risk: "medium"
+    notes: >-
+      Selected all/default parameter only; this is not full per-interface R12 coverage. The target must use the
+      generic_server non-routing profile. Interface overrides need separate review.
+  - id: "bp028_r12_default_send_redirects"
+    source:
+      document: "ANSSI-BP-028"
+      recommendation: "R12"
+      page: 22
+    level: "intermediary"
+    domain: "network"
+    title: "Disable IPv4 ICMP redirect sending (default)"
+    description: >-
+      Apply the selected R12 runtime parameter net.ipv4.conf.default.send_redirects with a minimum baseline of 0.
+    applicability:
+      os_families:
+        - "Debian"
+        - "RedHat"
+      non_router: true
+    enforcement:
+      status: "AUTOMATED"
+      implementation: "ansible/roles/network/tasks/main.yml"
+    verification:
+      type: "sysctl"
+      key: "net.ipv4.conf.default.send_redirects"
+      expected: "0"
+      accepted_values:
+        - "0"
+      remediable_values:
+        - "1"
+    reversible: true
+    transition: "reversible"
+    reboot_required: false
+    risk: "medium"
+    notes: >-
+      Selected all/default parameter only; this is not full per-interface R12 coverage. The target must use the
+      generic_server non-routing profile. Interface overrides need separate review.
+  - id: "bp028_r14_suid_dumpable"
+    source:
+      document: "ANSSI-BP-028"
+      recommendation: "R14"
+      page: 23
+    level: "intermediary"
+    domain: "filesystem"
+    title: "Disable core dumps of privileged executables"
+    description: "Apply the selected R14 runtime parameter fs.suid_dumpable with a minimum baseline of 0."
+    applicability:
+      os_families:
+        - "Debian"
+        - "RedHat"
+    enforcement:
+      status: "AUTOMATED"
+      implementation: "ansible/roles/kernel/tasks/runtime.yml"
+    verification:
+      type: "sysctl"
+      key: "fs.suid_dumpable"
+      expected: "0"
+      accepted_values:
+        - "0"
+      remediable_values:
+        - "1"
+        - "2"
+    reversible: true
+    transition: "reversible"
+    reboot_required: false
+    risk: "low"
+    notes: "A missing kernel interface is UNSUPPORTED. Verify the live value independently."
+  - id: "bp028_r14_protected_fifos"
+    source:
+      document: "ANSSI-BP-028"
+      recommendation: "R14"
+      page: 23
+    level: "intermediary"
+    domain: "filesystem"
+    title: "Protect FIFOs in shared sticky directories"
+    description: "Apply the selected R14 runtime parameter fs.protected_fifos with a minimum baseline of 2."
+    applicability:
+      os_families:
+        - "Debian"
+        - "RedHat"
+    enforcement:
+      status: "AUTOMATED"
+      implementation: "ansible/roles/kernel/tasks/runtime.yml"
+    verification:
+      type: "sysctl"
+      key: "fs.protected_fifos"
+      expected: "2"
+      accepted_values:
+        - "2"
+      remediable_values:
+        - "0"
+        - "1"
+    reversible: true
+    transition: "reversible"
+    reboot_required: false
+    risk: "low"
+    notes: "A missing kernel interface is UNSUPPORTED. Verify the live value independently."
+  - id: "bp028_r14_protected_regular"
+    source:
+      document: "ANSSI-BP-028"
+      recommendation: "R14"
+      page: 23
+    level: "intermediary"
+    domain: "filesystem"
+    title: "Protect regular files in shared sticky directories"
+    description: "Apply the selected R14 runtime parameter fs.protected_regular with a minimum baseline of 2."
+    applicability:
+      os_families:
+        - "Debian"
+        - "RedHat"
+    enforcement:
+      status: "AUTOMATED"
+      implementation: "ansible/roles/kernel/tasks/runtime.yml"
+    verification:
+      type: "sysctl"
+      key: "fs.protected_regular"
+      expected: "2"
+      accepted_values:
+        - "2"
+      remediable_values:
+        - "0"
+        - "1"
+    reversible: true
+    transition: "reversible"
+    reboot_required: false
+    risk: "low"
+    notes: "A missing kernel interface is UNSUPPORTED. Verify the live value independently."
+  - id: "bp028_r14_protected_symlinks"
+    source:
+      document: "ANSSI-BP-028"
+      recommendation: "R14"
+      page: 23
+    level: "intermediary"
+    domain: "filesystem"
+    title: "Restrict symbolic-link following"
+    description: "Apply the selected R14 runtime parameter fs.protected_symlinks with a minimum baseline of 1."
+    applicability:
+      os_families:
+        - "Debian"
+        - "RedHat"
+    enforcement:
+      status: "AUTOMATED"
+      implementation: "ansible/roles/kernel/tasks/runtime.yml"
+    verification:
+      type: "sysctl"
+      key: "fs.protected_symlinks"
+      expected: "1"
+      accepted_values:
+        - "1"
+      remediable_values:
+        - "0"
+    reversible: true
+    transition: "reversible"
+    reboot_required: false
+    risk: "low"
+    notes: "A missing kernel interface is UNSUPPORTED. Verify the live value independently."
+  - id: "bp028_r14_protected_hardlinks"
+    source:
+      document: "ANSSI-BP-028"
+      recommendation: "R14"
+      page: 23
+    level: "intermediary"
+    domain: "filesystem"
+    title: "Restrict hard-link creation"
+    description: "Apply the selected R14 runtime parameter fs.protected_hardlinks with a minimum baseline of 1."
+    applicability:
+      os_families:
+        - "Debian"
+        - "RedHat"
+    enforcement:
+      status: "AUTOMATED"
+      implementation: "ansible/roles/kernel/tasks/runtime.yml"
+    verification:
+      type: "sysctl"
+      key: "fs.protected_hardlinks"
+      expected: "1"
+      accepted_values:
+        - "1"
+      remediable_values:
+        - "0"
+    reversible: true
+    transition: "reversible"
+    reboot_required: false
+    risk: "low"
+    notes: "A missing kernel interface is UNSUPPORTED. Verify the live value independently."
+  - id: "bp028_r50_shadow"
+    source:
+      document: "ANSSI-BP-028"
+      recommendation: "R50"
+      page: 48
+    level: "intermediary"
+    domain: "filesystem"
+    title: "Restrict /etc/shadow permissions"
+    description: >-
+      Limit access to this existing sensitive authentication database to root and its trusted distribution group.
+    applicability:
+      os_families:
+        - "Debian"
+        - "RedHat"
+    enforcement:
+      status: "AUTOMATED"
+      implementation: "ansible/roles/filesystem/tasks/permissions.yml"
+    verification:
+      type: "file"
+      path: "/etc/shadow"
+      max_mode: "0640"
+      allowed_groups:
+        - "root"
+        - "shadow"
+    reversible: true
+    transition: "reversible"
+    reboot_required: false
+    risk: "medium"
+    notes: >-
+      Subset of R50, not a scan of all secrets. Preserve stricter mode bits and trusted group ownership; never add
+      permissions. The shadow group must remain restricted to principals with a strict need to know. Do not follow
+      symlinks or create absent authentication databases.
+  - id: "bp028_r50_gshadow"
+    source:
+      document: "ANSSI-BP-028"
+      recommendation: "R50"
+      page: 48
+    level: "intermediary"
+    domain: "filesystem"
+    title: "Restrict /etc/gshadow permissions"
+    description: >-
+      Limit access to this existing sensitive authentication database to root and its trusted distribution group.
+    applicability:
+      os_families:
+        - "Debian"
+        - "RedHat"
+    enforcement:
+      status: "AUTOMATED"
+      implementation: "ansible/roles/filesystem/tasks/permissions.yml"
+    verification:
+      type: "file"
+      path: "/etc/gshadow"
+      max_mode: "0640"
+      allowed_groups:
+        - "root"
+        - "shadow"
+    reversible: true
+    transition: "reversible"
+    reboot_required: false
+    risk: "medium"
+    notes: >-
+      Subset of R50, not a scan of all secrets. Preserve stricter mode bits and trusted group ownership; never add
+      permissions. The shadow group must remain restricted to principals with a strict need to know. Do not follow
+      symlinks or create absent authentication databases.
+  - id: "bp028_r30_unused_accounts"
+    source:
+      document: "ANSSI-BP-028"
+      recommendation: "R30"
+      page: 34
+    level: "minimal"
+    domain: "accounts"
+    title: "Review local accounts for continued need"
+    description: "Collect local account inventory for an administrator to identify unused accounts."
+    applicability:
+      os_families:
+        - "Debian"
+        - "RedHat"
+    enforcement:
+      status: "AUDIT_ONLY"
+    verification:
+      type: "audit"
+      check: "accounts"
+    reversible: false
+    transition: "manual"
+    reboot_required: false
+    risk: "low"
+    notes: >-
+      Inventory cannot determine business need. Do not delete or lock accounts automatically; exclude password hashes from
+      evidence.
+  - id: "bp028_r53_unknown_owners"
+    source:
+      document: "ANSSI-BP-028"
+      recommendation: "R53"
+      page: 50
+    level: "minimal"
+    domain: "filesystem"
+    title: "Inspect unknown file owners and groups"
+    description: "Find entries in the declared filesystem scan scope whose UID or GID cannot be resolved."
+    applicability:
+      os_families:
+        - "Debian"
+        - "RedHat"
+    enforcement:
+      status: "AUDIT_ONLY"
+    verification:
+      type: "audit"
+      check: "filesystem"
+    reversible: false
+    transition: "manual"
+    reboot_required: false
+    risk: "low"
+    notes: >-
+      Scope exclusions, incomplete traversal and truncation must be reported. An empty bounded scan does not establish
+      full-system coverage. Ownership repair requires workload review.
+  - id: "bp028_r54_world_writable_dirs"
+    source:
+      document: "ANSSI-BP-028"
+      recommendation: "R54"
+      page: 51
+    level: "minimal"
+    domain: "filesystem"
+    title: "Inspect shared writable directory protection"
+    description: "Review world-writable directories for a sticky bit and root ownership within the declared scan scope."
+    applicability:
+      os_families:
+        - "Debian"
+        - "RedHat"
+    enforcement:
+      status: "AUDIT_ONLY"
+    verification:
+      type: "audit"
+      check: "filesystem"
+    reversible: false
+    transition: "manual"
+    reboot_required: false
+    risk: "low"
+    notes: >-
+      Do not recursively change directories with unknown workloads. Evidence collection remains AUDIT_ONLY even when no
+      candidates are found.
+  - id: "bp028_r56_setid_inventory"
+    source:
+      document: "ANSSI-BP-028"
+      recommendation: "R56"
+      page: 52
+    level: "minimal"
+    domain: "filesystem"
+    title: "Review setuid and setgid executable exposure"
+    description: "Inventory special permission bits for review of software trust and intended privileged operation."
+    applicability:
+      os_families:
+        - "Debian"
+        - "RedHat"
+    enforcement:
+      status: "AUDIT_ONLY"
+    verification:
+      type: "audit"
+      check: "filesystem"
+    reversible: false
+    transition: "manual"
+    reboot_required: false
+    risk: "low"
+    notes: >-
+      Presence of setuid/setgid is not automatically a failure. No blind bit removal. Root-specific minimization belongs
+      to Enhanced R57 and is not claimed here.
+  - id: "bp028_r59_repository_review"
+    source:
+      document: "ANSSI-BP-028"
+      recommendation: "R59"
+      page: 53
+    level: "minimal"
+    domain: "packages"
+    title: "Review configured repository provenance"
+    description: >-
+      An operator must confirm repositories are official distribution/editor sources or authorised organisation-internal
+      sources.
+    applicability:
+      os_families:
+        - "Debian"
+        - "RedHat"
+    enforcement:
+      status: "MANUAL"
+    verification:
+      type: "manual"
+    reversible: false
+    transition: "manual"
+    reboot_required: false
+    risk: "low"
+    notes: >-
+      Repository names, enabled flags or package inventory do not prove provenance or mirror integrity. HardenOps does not
+      rewrite repository configuration.
+  - id: "bp028_r61_update_procedure"
+    source:
+      document: "ANSSI-BP-028"
+      recommendation: "R61"
+      page: 54
+    level: "minimal"
+    domain: "packages"
+    title: "Maintain a responsive security-update procedure"
+    description: "Define security monitoring, update evaluation, deployment timing and exception handling."
+    applicability:
+      os_families:
+        - "Debian"
+        - "RedHat"
+    enforcement:
+      status: "MANUAL"
+    verification:
+      type: "manual"
+    reversible: false
+    transition: "manual"
+    reboot_required: false
+    risk: "low"
+    notes: >-
+      One package update or installed auto-update service cannot verify an ongoing process. No unbounded upgrade is
+      performed.
+  - id: "bp028_r68_password_storage"
+    source:
+      document: "ANSSI-BP-028"
+      recommendation: "R68"
+      page: 61
+    level: "minimal"
+    domain: "accounts"
+    title: "Review password-storage cryptography with the required reference"
+    description: "R68 delegates storage requirements to section 4.6 of the MFA/password publication cited as reference [9]."
+    applicability:
+      os_families:
+        - "Debian"
+        - "RedHat"
+    enforcement:
+      status: "OUT_OF_SCOPE_REFERENCE_REQUIRED"
+    verification:
+      type: "manual"
+    reversible: false
+    transition: "manual"
+    reboot_required: false
+    risk: "low"
+    notes: >-
+      The referenced publication was not supplied. Informational PAM examples are not substituted for its requirements.
+      R50 file permissions are separate controls.
+  - id: "bp028_r13_disable_ipv6"
+    source:
+      document: "ANSSI-BP-028"
+      recommendation: "R13"
+      page: 22
+    level: "intermediary"
+    domain: "network"
+    title: "Disable IPv6 only when unused"
+    description: >-
+      If IPv6 is unnecessary, review the kernel boot flag and both sysctls specified by R13 as a single planned lifecycle
+      change.
+    applicability:
+      os_families:
+        - "Debian"
+        - "RedHat"
+      ipv6_unused: true
+    enforcement:
+      status: "MANUAL"
+    verification:
+      type: "manual"
+    reversible: false
+    transition: "manual"
+    reboot_required: true
+    risk: "high"
+    notes: >-
+      Default ipv6_required=true makes this NOT_APPLICABLE. With false it remains MANUAL: v0.1 does not edit bootloaders
+      or pretend runtime-only disablement fully implements R13. Current SSH/network use must be reviewed.
+  - id: "bp028_r32_session_lock"
+    source:
+      document: "ANSSI-BP-028"
+      recommendation: "R32"
+      page: 35
+    level: "intermediary"
+    domain: "accounts"
+    title: "Review inactivity locking of local sessions"
+    description: "Local console TTY and graphical sessions must lock after an appropriate inactivity interval."
+    applicability:
+      os_families:
+        - "Debian"
+        - "RedHat"
+    enforcement:
+      status: "MANUAL"
+    verification:
+      type: "manual"
+    reversible: false
+    transition: "manual"
+    reboot_required: false
+    risk: "low"
+    notes: >-
+      The source does not mandate a universal timeout value. Shell TMOUT logs out selected shells and is not equivalent to
+      locking all local sessions.

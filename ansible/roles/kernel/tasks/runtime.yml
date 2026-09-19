@@ -1,0 +1,30 @@
+---
+- name: Recheck the owned sysctl path immediately before mutation
+  ansible.builtin.stat:
+    path: "/etc/sysctl.d/90-hardenops-{{ hardenops_control.id }}.conf"
+    follow: false
+  register: kernel_persistence
+
+- name: Refuse an unsafe owned sysctl path
+  ansible.builtin.assert:
+    that:
+      - not kernel_persistence.stat.exists or kernel_persistence.stat.isreg | default(false)
+      - not kernel_persistence.stat.islnk | default(false)
+    fail_msg: The owned sysctl path must be absent or a regular file, never a symbolic link.
+
+- name: Persist and activate the required or stronger accepted sysctl value
+  ansible.posix.sysctl:
+    name: "{{ hardenops_control.verification.key }}"
+    value: "{{ hardenops_control.desired | string }}"
+    state: present
+    sysctl_file: "/etc/sysctl.d/90-hardenops-{{ hardenops_control.id }}.conf"
+    sysctl_set: true
+    reload: true
+
+- name: Protect the owned persistent sysctl file
+  ansible.builtin.file:
+    path: "/etc/sysctl.d/90-hardenops-{{ hardenops_control.id }}.conf"
+    state: file
+    owner: root
+    group: root
+    mode: "{{ hardenops_control.desired_persistence_mode }}"

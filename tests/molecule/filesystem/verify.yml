@@ -1,0 +1,33 @@
+---
+- name: Exercise the real read-only planner against the container userspace
+  ansible.builtin.import_playbook: ../../../ansible/playbooks/plan.yml
+  vars:
+    hardenops_level: intermediary
+
+- name: Exercise independent report generation for the review-only Minimal subset
+  ansible.builtin.import_playbook: ../../../ansible/playbooks/verify.yml
+  vars:
+    hardenops_level: minimal
+
+- name: Verify actual file state independently from enforcement results
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Inspect hardened file
+      ansible.builtin.stat:
+        path: /tmp/hardenops-permissions-fixture
+      register: molecule_hardened
+    - name: Inspect existing stricter file
+      ansible.builtin.stat:
+        path: /tmp/hardenops-stricter-fixture
+      register: molecule_stricter
+    - name: Assert permission remediation and preservation of stricter state
+      ansible.builtin.assert:
+        that:
+          - molecule_hardened.stat.isreg
+          - molecule_hardened.stat.mode == '0640'
+          - molecule_hardened.stat.uid == 0
+          - molecule_hardened.stat.gid == 0
+          - molecule_stricter.stat.mode == '0400'
+          - molecule_stricter.stat.uid == 0
+          - molecule_stricter.stat.gid == 0

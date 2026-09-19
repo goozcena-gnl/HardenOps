@@ -1,0 +1,62 @@
+---
+- name: Confirm the SSH or configured Ansible connection works
+  ansible.builtin.wait_for_connection:
+    timeout: 30
+
+- name: Verify privilege escalation
+  ansible.builtin.command:
+    argv: [id, -u]
+  register: hardenops_uid
+  changed_when: false
+  check_mode: false
+
+- name: Require root and prevent kernel hardening inside shared-kernel containers
+  ansible.builtin.assert:
+    that:
+      - hardenops_uid.stdout == '0'
+      - ansible_facts.virtualization_type | default('unknown') not in ['docker', 'container', 'containerd', 'lxc', 'podman', 'openvz']
+    fail_msg: Enforcement requires root on a supported VM or host; shared-kernel containers are unsuitable.
+
+- name: Check free space on the configuration filesystem
+  ansible.builtin.command:
+    argv:
+      - "{{ ansible_facts.python.executable }}"
+      - -c
+      - "import shutil; print(shutil.disk_usage('/etc').free // (1024 * 1024))"
+  register: hardenops_free_space
+  changed_when: false
+  check_mode: false
+
+- name: Require space for atomic configuration writes
+  ansible.builtin.assert:
+    that:
+      - hardenops_free_space.stdout | int >= hardenops_minimum_free_mb | int
+
+- name: Inspect the Debian package database
+  ansible.builtin.command:
+    argv: [dpkg, --audit]
+  register: hardenops_dpkg_audit
+  changed_when: false
+  failed_when: hardenops_dpkg_audit.rc != 0 or hardenops_dpkg_audit.stdout | trim | length > 0
+  check_mode: false
+  when: ansible_facts.os_family == 'Debian'
+
+- name: Confirm that the RPM package database is readable
+  ansible.builtin.command:
+    argv: [rpm, --query, --all, --queryformat, "%{NAME}\n"]
+  changed_when: false
+  check_mode: false
+  when: ansible_facts.os_family == 'RedHat'
+
+- name: Read active IPv4 forwarding before applying server assumptions
+  ansible.builtin.command:
+    argv: [sysctl, -n, net.ipv4.ip_forward]
+  register: hardenops_forwarding
+  changed_when: false
+  check_mode: false
+
+- name: Refuse a non-routing declaration that contradicts live forwarding
+  ansible.builtin.assert:
+    that:
+      - hardenops_config.network.routing or hardenops_forwarding.stdout | trim == '0'
+    fail_msg: Live IPv4 forwarding is enabled. Declare network.routing=true or investigate before hardening.

@@ -1,0 +1,15 @@
+---
+- name: Check the prerequisites for HardenOps without changing the security baseline
+  hosts: hardenops
+  become: true
+  gather_facts: true
+  vars_files:
+    - ../group_vars/all.yml
+  tasks:
+    - name: Validate supported inputs and collect context
+      ansible.builtin.import_tasks: ../tasks/prepare.yml
+    - name: Check safe operation prerequisites
+      ansible.builtin.import_tasks: ../tasks/preflight.yml
+    - name: Explain baseline readiness
+      ansible.builtin.debug:
+        msg: Prerequisites verified. No packages, accounts, SSH settings or security controls were changed.

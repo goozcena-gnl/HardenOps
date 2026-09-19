@@ -1,0 +1,5 @@
+---
+name: enhanced
+implemented: false
+description: Future profile; not operational in HardenOps v0.1.
+includes_levels: []

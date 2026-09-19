@@ -1,0 +1,47 @@
+---
+- name: Restrict inventory names used as report directory names
+  ansible.builtin.assert:
+    that:
+      - inventory_hostname is match('^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$')
+    fail_msg: Use a simple host alias containing letters, numbers, dots, underscores or hyphens.
+
+# Evidence is regenerated on every run. These controller-only writes are excluded
+# from the target configuration change count used for hardening idempotence.
+- name: Save reports on the controller
+  delegate_to: localhost
+  become: false
+  vars:
+    ansible_python_interpreter: "{{ ansible_playbook_python }}"
+  when: not ansible_check_mode
+  block:
+    - name: Create the private evidence directory
+      ansible.builtin.file:
+        path: "{{ hardenops_artifacts_dir }}/{{ inventory_hostname }}"
+        state: directory
+        mode: '0700'
+      changed_when: false
+
+    - name: Save independent machine-readable evidence
+      ansible.builtin.copy:
+        content: "{{ hardenops_observation | to_nice_json }}\n"
+        dest: "{{ hardenops_artifacts_dir }}/{{ inventory_hostname }}/report.json"
+        mode: '0600'
+      changed_when: false
+
+    - name: Render human-readable evidence
+      ansible.builtin.command:
+        argv:
+          - "{{ ansible_playbook_python }}"
+          - "{{ playbook_dir }}/../../tools/generate_report.py"
+          - "{{ hardenops_artifacts_dir }}/{{ inventory_hostname }}/report.json"
+      changed_when: false
+
+    - name: Protect the human-readable evidence
+      ansible.builtin.file:
+        path: "{{ hardenops_artifacts_dir }}/{{ inventory_hostname }}/report.md"
+        mode: '0600'
+      changed_when: false
+
+- name: Summarize independent verification
+  ansible.builtin.debug:
+    var: hardenops_observation.summary

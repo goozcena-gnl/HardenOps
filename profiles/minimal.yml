@@ -1,0 +1,6 @@
+---
+name: minimal
+implemented: true
+description: Selected Minimal recommendations; v0.1 collects audits and manual review evidence.
+includes_levels:
+  - minimal

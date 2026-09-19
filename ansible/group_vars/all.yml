@@ -1,0 +1,9 @@
+---
+hardenops_config:
+  workload_profile: generic_server
+  disabled_controls: []
+  network:
+    routing: false
+    ipv6_required: true
+hardenops_minimum_free_mb: 128
+hardenops_artifacts_dir: "{{ playbook_dir }}/../../artifacts"

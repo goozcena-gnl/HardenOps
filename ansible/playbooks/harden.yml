@@ -1,0 +1,27 @@
+---
+- name: Enforce the selected minimum baseline
+  hosts: hardenops
+  become: true
+  gather_facts: true
+  serial: 1
+  any_errors_fatal: true
+  vars_files:
+    - ../group_vars/all.yml
+  pre_tasks:
+    - name: Validate supported inputs and collect context
+      ansible.builtin.import_tasks: ../tasks/prepare.yml
+    - name: Check safety before enforcement
+      ansible.builtin.import_tasks: ../tasks/preflight.yml
+    - name: Resolve controls using live state
+      ansible.builtin.import_tasks: ../tasks/observe.yml
+  roles:
+    - role: kernel
+    - role: network
+    - role: filesystem
+  post_tasks:
+    - name: Reconnect after applying the baseline
+      ansible.builtin.wait_for_connection:
+        timeout: 30
+
+- name: Produce fresh independent evidence after enforcement
+  ansible.builtin.import_playbook: verify.yml

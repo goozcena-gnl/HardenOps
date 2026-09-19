@@ -1,0 +1,7 @@
+---
+name: intermediary
+implemented: true
+description: Selected Intermediary controls with the cumulative Minimal review baseline.
+includes_levels:
+  - minimal
+  - intermediary
