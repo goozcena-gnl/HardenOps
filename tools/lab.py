@@ -9,6 +9,7 @@ from pathlib import Path
 import shlex
 import subprocess
 import sys
+from typing import TypedDict
 
 ROOT = Path(__file__).resolve().parents[1]
 LAB = ROOT / ".lab"
@@ -17,36 +18,59 @@ DISTROS = ("ubuntu2404", "rocky9")
 PROVIDERS = ("libvirt", "virtualbox")
 
 
-def parse_ssh_config(text: str) -> dict[str, str]:
+class SSHConfig(TypedDict):
+    hostname: str
+    user: str
+    port: str
+    identityfiles: list[str]
+
+
+def parse_ssh_config(text: str) -> SSHConfig:
     """Accept Vagrant's single-host output, never its host-key disabling options."""
     values: dict[str, str] = {}
+    identityfiles: list[str] = []
+    host_seen = False
     for line in text.splitlines():
         tokens = shlex.split(line)
         if not tokens:
             continue
         key = tokens[0].lower()
-        if key in {"hostname", "user", "port", "identityfile"}:
+        if key == "host":
+            if host_seen or len(tokens) != 2 or values or identityfiles:
+                raise ValueError("Ambiguous Vagrant SSH configuration: host")
+            host_seen = True
+        elif key == "match":
+            raise ValueError("Ambiguous Vagrant SSH configuration: match")
+        elif key == "identityfile":
+            if len(tokens) != 2 or not tokens[1]:
+                raise ValueError("Invalid Vagrant SSH configuration: identityfile")
+            identityfiles.append(tokens[1])
+        elif key in {"hostname", "user", "port"}:
             if len(tokens) != 2 or key in values:
                 raise ValueError(f"Ambiguous Vagrant SSH configuration: {key}")
             values[key] = tokens[1]
-    if set(values) != {"hostname", "user", "port", "identityfile"}:
+    if set(values) != {"hostname", "user", "port"} or not identityfiles:
         raise ValueError("Incomplete Vagrant SSH configuration; is the VM running?")
     if not 1 <= int(values["port"]) <= 65535:
         raise ValueError("Invalid SSH port")
-    return values
+    return SSHConfig(hostname=values["hostname"], user=values["user"],
+                     port=values["port"], identityfiles=identityfiles)
 
 
-def make_inventory(ssh: dict[str, str], lab: Path = LAB) -> dict:
+def make_inventory(ssh: SSHConfig, lab: Path = LAB) -> dict:
     options = [
         "-o", "IdentitiesOnly=yes",
         "-o", "StrictHostKeyChecking=accept-new",
         "-o", f"UserKnownHostsFile={lab / 'known_hosts'}",
     ]
+    # OpenSSH tries repeated IdentityFile entries in order; retain fallback keys.
+    for identityfile in ssh["identityfiles"][1:]:
+        options.extend(["-i", identityfile])
     return {"all": {"children": {"hardenops": {"hosts": {"lab": {
         "ansible_host": ssh["hostname"],
         "ansible_port": int(ssh["port"]),
         "ansible_user": ssh["user"],
-        "ansible_ssh_private_key_file": ssh["identityfile"],
+        "ansible_ssh_private_key_file": ssh["identityfiles"][0],
         "ansible_ssh_common_args": shlex.join(options),
     }}}}}}
 
