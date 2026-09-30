@@ -1,5 +1,127 @@
 # Validation record — 0.1.0
 
+## 2026-09-30 — fresh real-VM validation attempt
+
+**Verdict: NOT READY FOR PUBLICATION.** The earlier environment smoke chain
+passed on 2026-09-29, but the mandatory fresh Ubuntu VM now stalls before SSH
+and before any HardenOps baseline or hardening playbook executes. Rocky real-VM
+validation is **NOT RUN**: the sequential workflow stops at this Ubuntu blocker.
+Successful unit and container tests do not establish guest boot, kernel,
+idempotence or reboot correctness.
+
+### Repository gate and inventory correction
+
+The starting branch was `validation/v0.1-real-vm`, HEAD
+`80c03eff3e44d4645d89291c811bb914aa07fe2d`, with exactly two modified tracked
+files: `tools/lab.py` and `tests/unit/test_lab.py`. Review confirmed that the
+correction preserves the ordered identities for one host, keeps host-key
+checking, quotes additional identity paths as separate arguments, and rejects
+ambiguous host/match scopes and duplicate connection fields. Single-key and
+multiple-key regression cases both pass.
+
+Before creating a VM, `make test validate lint` passed: 101 unit cases, all
+28 catalogue entries and four profiles, YAML and production Ansible lint, and
+syntax checks for baseline, plan, harden and verify. `git diff --check` passed.
+The dedicated local commit is `3d1862b728eec89689f1861583fe166e5f998a68`,
+`fix: support multiple Vagrant SSH identities`. The VM gate started from a clean
+tracked worktree. No push, tag, history rewrite or publication was performed.
+
+### Observed host topology and short preflight
+
+| Item | Actual observation |
+| --- | --- |
+| Windows | Windows 11, build `10.0.26300.9457`; last boot 2026-09-30 at 12:56 Europe/Paris |
+| WSL / controller | WSL 2.7.14.0; Ubuntu 24.04.5 userspace; kernel `6.18.33.2-microsoft-standard-WSL2` |
+| Networking / filesystem | `wslinfo` returns `mirrored`; actual `/mnt/c` mount includes DrvFS `metadata` |
+| Vagrant / provider | Linux Vagrant 2.4.9; existing Windows VirtualBox 7.2.20r175154 |
+| Python / Ansible | Python 3.12.3; ansible-core 2.21.4, using the existing isolated controller environment and project configuration |
+| Molecule / Docker | Molecule 26.8.0; Docker engine 29.1.3 |
+| Initial capacity | 12708 MiB available, 46% committed; no project VM or lab state existed |
+| Later memory observations | 11808, 11624 and 11478 MiB available; 50% committed; no memory collapse observed |
+
+No host, Hyper-V, WSL, DrvFS, BIOS, networking, security-feature or VirtualBox
+installation setting was modified during this run. The provider log records
+the NEM/Windows hypervisor execution path; that observation does not establish
+the cause of the guest hang.
+
+### Fresh Ubuntu attempt and bounded diagnosis
+
+`make deploy DISTRO=ubuntu2404 PROVIDER=virtualbox` imported the pinned
+`bento/ubuntu-24.04@202508.03.0` amd64 box and created only
+`hardenops_default_1790769406826_74619`, UUID
+`e5c1ec0f-d7d1-4871-8acb-461f95df993d`, with 2048 MiB and two CPUs.
+VirtualBox reports it running, with NAT `127.0.0.1:2222` to guest port 22.
+Repeated console observations remained at initramfs `Loading essential drivers`.
+Both Windows and WSL TCP connections succeeded but received no SSH banner.
+
+After preserving console and provider evidence, only this task's Vagrant SSH
+wait was interrupted. `make deploy` returned 2 because Vagrant was interrupted,
+not because a completed HardenOps task failed. The baseline playbook was never
+reached. A single reversible pause/resume exposed a kernel stack during module
+loading without restoring SSH. After preserving that evidence, one cold restart
+of this same VM also remained in driver loading, with a RAID6 benchmark line and
+no SSH banner during bounded observation. No additional VM was created, and no
+provider settings were changed. The captured logs contain no recurrence of the
+previous `0xc0000005` VBoxVMM crash signature.
+
+Cause class: **ENVIRONMENT**. The demonstrated failure is guest cold-boot/module
+loading before SSH. The evidence does not distinguish an image/kernel problem
+from a VirtualBox/host-integration problem. No speculative project or host fix
+was applied. The prior recovered smoke VM is not proof of this fresh boot path.
+
+| Mandatory gate | Ubuntu Server 24.04 | Rocky Linux 9 |
+| --- | --- | --- |
+| Fresh provisioning | BLOCKED | NOT RUN |
+| Guest version / kernel / architecture verified inside guest | NOT RUN | NOT RUN |
+| SSH / Vagrant / inventory / Ansible / become | NOT RUN | NOT RUN |
+| Minimal plan / harden / verify | NOT RUN | NOT RUN |
+| Minimal target idempotence | NOT RUN | NOT RUN |
+| Minimal genuine guest reboot / post-reboot verification | NOT RUN | NOT RUN |
+| Intermediary plan / harden / verify | NOT RUN | NOT RUN |
+| Intermediary target idempotence | NOT RUN | NOT RUN |
+| Intermediary genuine guest reboot / post-reboot persistence | NOT RUN | NOT RUN |
+| Real-guest JSON / Markdown reports and Testinfra | NOT RUN | NOT RUN |
+| Successful-cycle cleanup | NOT RUN | NOT RUN |
+
+The failed Ubuntu test VM is preserved for diagnosis. Rocky was not created;
+its configured box remains `rockylinux/9@6.0.0`. Neither guest's actual version
+or kernel is claimed. The four unrelated VMs remain powered off and untouched:
+`fluxvirt-lab`, `fluxvirt-cleanroom`, `github-runner-devops-01`, and
+`TP-Hardening-1`.
+
+### Independent regression results
+
+Although the real-VM acceptance gate is blocked, the independent local gates
+were completed again in this run:
+
+| Evidence class / gate | Result | Actual scope |
+| --- | --- | --- |
+| Static/unit: tests and reports | PASS | 101 unit cases, including four report tests |
+| Static/unit: catalogue / profiles | PASS | 28 entries, all four profile definitions |
+| Static/unit: YAML / Ansible lint | PASS | Production lint, 47 processed files, zero failures or warnings |
+| Static/unit: Ansible syntax | PASS | All four playbooks |
+| Repository hygiene: secrets | PASS | Existing tracked-file secret scanner |
+| Repository hygiene: dependencies | PASS | Existing pinned-requirements audit; no known vulnerabilities reported at execution time |
+| Container: Molecule Ubuntu | PASS | Seven lifecycle actions, second convergence changed zero; container cleaned up |
+| Container: Molecule Rocky | PASS | Seven lifecycle actions independently, second convergence changed zero; container cleaned up |
+| Container: report validation | PASS | Fresh JSON parses, Markdown matches its renderer, catalogue digest and metadata checked |
+| Ubuntu real VM | BLOCKED | Guest stalls before SSH and HardenOps execution |
+| Rocky real VM | NOT RUN | Sequential workflow stopped at Ubuntu blocker |
+| Live-VM integration | NOT RUN | No healthy hardened guest available |
+
+Container reports record Ubuntu 24.04 and Rocky 9.3 userspace, both x86_64,
+sharing the controller kernel. Each Minimal report contains 4 AUDIT_ONLY,
+2 MANUAL, 1 OUT_OF_SCOPE_REFERENCE_REQUIRED and 21 NOT_APPLICABLE entries,
+with zero automated or independently passed entries. These are not VM or
+SELinux/reboot/persistent-kernel validation results.
+
+Local evidence is retained in the ignored directory
+`artifacts/real-vm-validation-2026-09-30/`: gate logs, separate container reports,
+console captures, provider logs, memory and network observations, and the
+interrupted-provisioning record. No credentials or private-key contents were
+recorded. No new control, profile, functionality or source recommendation was
+added. README statements remain accurate and were not rewritten.
+
 ## 2026-09-27–28 — real-VM validation milestone
 
 **Verdict: NOT READY FOR PUBLICATION.** The mandatory real-VM paths are
