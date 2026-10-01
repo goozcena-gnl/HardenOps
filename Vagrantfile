@@ -30,7 +30,7 @@ Vagrant.configure("2") do |config|
       override.vm.box_version = "20260926.0.0"
     end
     provider.memory = 2048
-    provider.cpus = distro == "ubuntu2404" ? 1 : 2
+    provider.cpus = 1
     provider.gui = false
   end
 end

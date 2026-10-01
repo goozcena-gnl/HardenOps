@@ -1,5 +1,92 @@
 # Validation record — 0.1.0
 
+## 2026-10-01 — Rocky one-CPU lab candidate adopted
+
+**ROCKY_SINGLE_CPU_BOOT_PATH_VALIDATED; ROCKY_LAB_CANDIDATE_PASS;
+ROCKY_LAB_CANDIDATE_ADOPTED.** This milestone validates the Rocky local lab's
+fresh-boot and connectivity contract. The full Rocky hardening/reboot acceptance
+gate remains pending and was not started in this task.
+
+The exact cached `rockylinux/9@6.0.0` VirtualBox amd64 image was reused without
+download, disk/OVF modification or image substitution. Cache identity was tied
+to the sealed previous Vagrant checksum-verification/install record, its exact
+version/provider/architecture catalog and matching preserved cache metadata.
+The registry/archive SHA-256 was
+`b512430b42672a3ff0f72415848d96371527e82455865b6a70a865c512cf31b3`.
+All seven installed cache-file SHA-256 values were recorded before diagnostics
+and unchanged afterward. Vagrant had removed the original downloaded `.box`
+after verification; the archive was not independently rehashed in this task,
+and extracted component hashes were not misrepresented as its archive digest.
+
+The historical two-vCPU R0 failure was reused from the prior gate. No new
+two-vCPU VM was created. Its normal 600-second timeout, unavailable SSH,
+unverified guest identity and stalled SMP-startup console remain historical
+environment observations. NEM/WHP was observed, but the exact root cause was
+not established. No deeper SMP/provider investigation or host setting change
+was performed.
+
+### Two scratch boots and two normal workflow smokes
+
+R1 and R2 used identical minimal scratch configurations outside HardenOps:
+the same exact box/provider/architecture, 2048 MiB RAM and **one vCPU**,
+without provisioning, Ansible, custom networking or hardware overrides.
+Shared-folder mounting was disabled as in the production lab. Every other
+virtual hardware setting kept its box/provider defaults; actual I/O APIC
+remained on. Both fresh boots passed normally, with SSH banners available
+after approximately 34 and 31 seconds. Guest identity in both was Rocky Linux
+9.6, kernel `5.14.0-570.17.1.el9_6.x86_64`, x86_64, one online CPU and
+**SELinux Enforcing**. Each VM was destroyed after evidence capture.
+
+Only after both scratch boots passed was the temporary repository candidate
+prepared. Its sole functional change was Rocky VirtualBox CPU allocation
+**2 → 1**. Ubuntu VirtualBox remains one vCPU; both libvirt paths remain two.
+Box/version, RAM, networking, storage, I/O APIC, catalogue, profiles, roles and
+playbooks were unchanged.
+
+Two more distinct fresh VMs passed the normal HardenOps deployment workflow
+using `/home/goozcena/.cache/hardenops-v01-venv`, Python 3.12.3,
+ansible-core 2.21.4, ansible-lint/Molecule 26.8.0, ansible.posix 2.2.2 and
+community.docker 5.3.0, with the repository `ansible.cfg`. Both confirmed
+Rocky 9.6, the same kernel, x86_64, one online CPU and SELinux Enforcing.
+Direct WSL SSH, Vagrant SSH, inventory generation/validation, Ansible ping,
+full facts and sudo/become passed. VM1 additionally proved the unprivileged
+harmless command. Normal read-only baseline recaps were `ok=19 changed=0
+failed=0` for both. No Minimal, Intermediary, persistence reboot or live
+Testinfra acceptance was run.
+
+An optional VM1 collector probe initially invoked `systemd --version`, which
+was absent from Rocky's PATH. Its original failed log/result were preserved.
+Only the outside-repository collector was corrected to `systemctl --version`;
+the remaining read-only probes completed on the same successful guest boot.
+No retry of deployment, fresh VM, reboot or HardenOps source fix was used to
+resolve this instrumentation error.
+
+The four fresh UUIDs were `0cff43ac-ff50-4468-a482-963dba2fea0b`, `004bf3f6-a434-42d7-80ad-026e4b418c25`,
+`5d794d35-9cfe-49c3-acba-afd8dbb16c65` and `a9badeca-3f2f-4eeb-b774-c1b4b9c9ab24`. They were created serially, with
+each predecessor destroyed before its successor. A 61-check evidence audit
+passed. The four unrelated VM UUIDs, powered-off states and configuration
+hashes remained unchanged; prior Ubuntu and Rocky evidence stayed sealed.
+
+### Regression and adoption scope
+
+The pinned local regression passed **111 unit tests**, 28-control and
+four-profile validation, yamllint, ansible-lint with zero failures/warnings,
+all four playbook syntax checks, tracked-source secret scanning, dependency
+audit, report tests and `git diff --check`. Molecule Ubuntu and Rocky passed
+their filesystem/idempotence/report lifecycles and removed their containers.
+These container checks do not establish real Rocky kernel/reboot behavior.
+
+One vCPU is sufficient for the previously audited current v0.1 functional,
+security, test and acceptance scope, which has no SMP requirement. Adoption
+defines a **one-vCPU Rocky VirtualBox local validation contract**; it does
+not claim that Rocky requires one CPU or establish a Rocky, VirtualBox or
+NEM/WHP defect. SMP remains outside this local contract. All four trial VMs
+and expected project connection state were cleaned up; cached boxes were
+retained. No Ubuntu VM gate, publication or remote workflow was started.
+
+The next task is the full Rocky Linux 9 Real VM Validation Gate using this
+adopted one-vCPU contract and the same exact pinned controller.
+
 ## 2026-10-01 — Rocky real-VM gate blocked before HardenOps
 
 **ROCKY_REAL_VM_GATE_FAIL; LOCAL_REAL_VM_ACCEPTANCE_INCOMPLETE.** The exact

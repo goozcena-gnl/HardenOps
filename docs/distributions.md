@@ -16,10 +16,10 @@ recommended Windows route; WSL requires separately configured Vagrant/provider
 connectivity. The adopted one-vCPU Ubuntu VirtualBox path has passed the local full
 Minimal-to-Intermediary real-VM gate, independent verification, idempotence and
 reboot persistence described in [validation.md](validation.md), after a focused
-R14 persistence correction. Rocky Linux 9 real-VM acceptance remains pending:
-its unchanged two-vCPU VirtualBox contract stalled during fresh SMP startup
-before SSH or HardenOps execution. The attempted gate, exact-image download
-recovery and cleanup are recorded in [validation.md](validation.md).
+R14 persistence correction. Rocky Linux 9's one-vCPU VirtualBox local lab
+has passed two scratch boots and two normal workflow smoke boots using its
+unchanged exact box and pinned controller. The full Rocky hardening/reboot
+acceptance gate remains pending; see [validation.md](validation.md).
 
 The default provider is libvirt/KVM. Install libvirt, QEMU/KVM and the Vagrant
 libvirt provider using the [provider installation guide](https://vagrant-libvirt.github.io/vagrant-libvirt/installation.html).
@@ -58,8 +58,19 @@ dependency, so one CPU is sufficient for this local validation scope. Both fresh
 candidate guests reported one online CPU. No I/O APIC override is added.
 Multi-vCPU behavior on this VirtualBox/WHP host remains outside the validated
 local-lab contract; this is not a claim about production CPU topology. Ubuntu
-libvirt and both Rocky provider configurations retain their original image pins
-and two-CPU allocation.
+libvirt and Rocky libvirt retain their original image pins
+and two-CPU allocation. Rocky VirtualBox retains its image pin and uses one CPU.
+
+Rocky under VirtualBox declares **1 vCPU and 2048 MiB RAM** for the v0.1
+local validation contract. The current audited scope does not require SMP.
+The prior two-vCPU boot stalled before SSH on this NEM/WHP host; two fresh
+scratch boots and two fresh normal HardenOps smoke boots then passed with
+the exact same cached `rockylinux/9@6.0.0` image at one vCPU. All four guests
+reported Rocky 9.6, one online CPU and SELinux Enforcing. This finite evidence
+does not establish a Rocky, VirtualBox or NEM/WHP defect or universal reliability.
+SMP remains outside the local VirtualBox validation contract. Full Rocky
+profile enforcement, independent verification and reboot acceptance remain
+the next gate; no such gate was run during lab adoption.
 
 The lab disables shared folders and inserts a fresh Vagrant SSH key. It uses the
 provider's default management/NAT network without adding public networking.
