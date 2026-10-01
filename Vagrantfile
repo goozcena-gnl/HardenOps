@@ -24,9 +24,13 @@ Vagrant.configure("2") do |config|
     provider.memory = 2048
     provider.cpus = 2
   end
-  config.vm.provider "virtualbox" do |provider|
+  config.vm.provider "virtualbox" do |provider, override|
+    if distro == "ubuntu2404"
+      override.vm.box = "cloud-image/ubuntu-24.04"
+      override.vm.box_version = "20260926.0.0"
+    end
     provider.memory = 2048
-    provider.cpus = 2
+    provider.cpus = distro == "ubuntu2404" ? 1 : 2
     provider.gui = false
   end
 end

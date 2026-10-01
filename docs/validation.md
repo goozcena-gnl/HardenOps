@@ -1,5 +1,79 @@
 # Validation record — 0.1.0
 
+## 2026-10-01 — Ubuntu single-CPU candidate gate
+
+**SINGLE_CPU_CANDIDATE_PASS.** Two completely fresh Ubuntu VirtualBox guests
+passed the provisioning and connectivity gate with
+`cloud-image/ubuntu-24.04@20260926.0.0`, amd64, **1 configured vCPU**, 2048 MiB
+RAM and the box's default I/O APIC off. No I/O APIC override was introduced.
+The alternative was selected after controlled local stability validation;
+these observations do not establish that Bento is defective.
+
+### CPU requirement audit and scope
+
+A read-only review of all 62 tracked files covered the Vagrant and Make workflow,
+README/docs, tools, catalogue/profiles, Ansible tasks/roles/playbooks and
+unit/live/Molecule tests. The two historical `cpus = 2` settings were resource
+choices. Historical VM descriptions are observations, not acceptance conditions.
+There is no functional CPU-count/topology assertion, scheduler/load test,
+parallel-execution requirement or security control requiring SMP. The catalogue's
+performance-monitoring restriction is an access policy, not a performance test.
+Classification: **SINGLE_CPU_SUFFICIENT** for the existing v0.1 validation scope.
+This does not claim that one CPU represents every production deployment.
+
+Only the Ubuntu VirtualBox box name, exact version and CPU allocation changed.
+Rocky, Ubuntu libvirt, controls, profiles, roles, Ansible behavior, networking and
+host/provider installation settings were preserved. Existing lab unit tests cover
+SSH inventory and state, without suitable Vagrant/provider configuration coverage;
+the candidate was checked by `vagrant validate` and actual fresh-guest resource
+observations rather than a new string-matching unit test.
+
+### Exact controller and fresh evidence
+
+Both attempts used `/home/goozcena/.cache/hardenops-v01-venv`: Python 3.12.3,
+ansible-core 2.21.4, ansible-lint 26.8.0 and Molecule 26.8.0, with project collections
+ansible.posix 2.2.2 and community.docker 5.3.0. All eleven direct dependency pins
+and both collection pins were verified again; `python --version`,
+`ansible --version` and `pip check` passed. WSL networking remained mirrored and
+the actual `/mnt/c` mount retained DrvFS metadata. The existing provider was
+VirtualBox 7.2.20r175154, controlled by Linux Vagrant 2.4.9.
+
+| Check | VM 1 | VM 2 |
+| --- | --- | --- |
+| Fresh UUID | `f7396b51-152b-4543-bb63-77ea476092c7` | `1f97dc25-3a98-4901-a75d-10693cbf5951` |
+| One fresh boot, no lifecycle intervention | PASS | PASS |
+| Guest Ubuntu 24.04 / x86_64 | PASS | PASS |
+| nproc / getconf / lscpu / Ansible CPU count | 1 / 1 / 1 / 1 | 1 / 1 / 1 / 1 |
+| Guest kernel | `6.8.0-142-generic` | `6.8.0-142-generic` |
+| WSL TCP / SSH / vagrant ssh | PASS | PASS |
+| Inventory generation / validation | PASS | PASS |
+| Ansible ping / full facts | PASS | PASS |
+| Harmless `id -u` as vagrant | PASS, 1000 | Not required |
+| sudo/become `id -u` | PASS, 0 | PASS, 0 |
+| Read-only baseline prerequisite recap | changed=0, failed=0 | changed=0, failed=0 |
+| Destruction after evidence | PASS | PASS |
+
+The first guest was destroyed before the second import. There were no retries,
+reboots, pause/resume operations or saved-state recovery. An independent evidence
+review passed 36 checks. Both boots were slow, and Vagrant reported a Guest
+Additions version mismatch; no workaround was applied and no cause was inferred.
+The four unrelated VMs retained their UUIDs, powered-off states and configuration
+hashes. Logs, console captures, guest/fact results and cleanup records are retained
+locally outside the tracked repository in `../ubuntu-single-cpu-2026-10-01/`.
+
+### Limits and next gate
+
+The image is third-party, with **MEDIUM** provenance confidence and no independent
+registry `.box` digest; see [the provider contract](distributions.md). The sample
+is two fresh guests on this host, not a general reliability guarantee. Unresolved
+multi-vCPU VirtualBox/NEM/WHP behavior is outside the intentional one-vCPU local
+contract; no new SMP diagnostic was run because HardenOps does not require it.
+
+Minimal and Intermediary hardening, real-guest control verification/idempotence,
+genuine reboot persistence, live Testinfra and Rocky real-VM validation are
+**NOT RUN** in this gate. The full Real VM Validation Gate remains the next
+milestone, using the adopted Ubuntu VirtualBox contract and exact controller.
+
 ## 2026-09-30 — fresh real-VM validation attempt
 
 **Verdict: NOT READY FOR PUBLICATION.** The earlier environment smoke chain

@@ -13,7 +13,9 @@ Ansible 2.21 supports Python 3.9 on the target, including Rocky 9's default Pyth
 see the [Ansible support matrix](https://docs.ansible.com/projects/ansible-core/devel/reference_appendices/release_and_maintenance.html).
 Native Windows is not an Ansible control node. A Linux VM/controller is the
 recommended Windows route; WSL requires separately configured Vagrant/provider
-connectivity and is not claimed as a tested VM provisioning path.
+connectivity. The Ubuntu VirtualBox path has passed the local provisioning and
+connectivity gate described in [validation.md](validation.md); full VM hardening
+and reboot acceptance remain unvalidated.
 
 The default provider is libvirt/KVM. Install libvirt, QEMU/KVM and the Vagrant
 libvirt provider using the [provider installation guide](https://vagrant-libvirt.github.io/vagrant-libvirt/installation.html).
@@ -21,10 +23,11 @@ Ensure your account can access the libvirt daemon before deploying.
 VirtualBox is an optional alternative: `make deploy DISTRO=ubuntu2404 PROVIDER=virtualbox`.
 Only amd64/x86_64 boxes are selected in v0.1.
 
-| Target | Pinned Vagrant box | Version | Providers in registry |
+| Target / selected provider | Pinned Vagrant box | Version | Architecture |
 | --- | --- | --- | --- |
-| Ubuntu 24.04 | `bento/ubuntu-24.04` | `202508.03.0` | amd64 libvirt, VirtualBox |
-| Rocky Linux 9 | `rockylinux/9` | `6.0.0` | amd64 libvirt, VirtualBox |
+| Ubuntu 24.04 / libvirt | `bento/ubuntu-24.04` | `202508.03.0` | amd64 |
+| Ubuntu 24.04 / VirtualBox | `cloud-image/ubuntu-24.04` | `20260926.0.0` | amd64 |
+| Rocky Linux 9 / libvirt, VirtualBox | `rockylinux/9` | `6.0.0` | amd64 |
 
 Box/provider metadata was read from the publisher's registry APIs on 2026-09-19:
 [Bento Ubuntu metadata](https://vagrantcloud.com/api/v2/vagrant/bento/ubuntu-24.04)
@@ -34,6 +37,25 @@ previous release. Box pins are reproducibility choices, not claims that the base
 image is fully patched. Review updates before using the lab beyond isolated tests.
 Canonical [stopped publishing Vagrant images starting with Ubuntu 24.04](https://ubuntu.com/docs/public-images/public-images-explanation/vagrant/);
 Bento is a third-party image publisher recommended in [HashiCorp's box documentation](https://developer.hashicorp.com/vagrant/docs/boxes).
+
+The Ubuntu VirtualBox override selects the third-party `cloud-image` box after
+controlled local stability validation; it does not establish a Bento defect.
+The exact [registry provider/version](https://vagrantcloud.com/api/v2/box/cloud-image/ubuntu-24.04/version/20260926.0.0/provider/virtualbox/amd64)
+and the linked [build source](https://github.com/alchemy-solutions/vagrant-cloud-images)
+were inspected before the image comparison. Provenance confidence is **MEDIUM**:
+the publisher and repackaging pipeline are linked, but the registry supplies no
+independent `.box` digest or exact artifact-to-input attestation. This is not an
+official Canonical Vagrant box; a checksum for the upstream cloud image does not
+authenticate the repackaged `.box`.
+
+Ubuntu under VirtualBox intentionally declares **1 vCPU and 2048 MiB RAM**.
+The current v0.1 controls, preflights and acceptance tests have no SMP or CPU-count
+dependency, so one CPU is sufficient for this local validation scope. Both fresh
+candidate guests reported one online CPU. No I/O APIC override is added.
+Multi-vCPU behavior on this VirtualBox/WHP host remains outside the validated
+local-lab contract; this is not a claim about production CPU topology. Ubuntu
+libvirt and both Rocky provider configurations retain their original image pins
+and two-CPU allocation.
 
 The lab disables shared folders and inserts a fresh Vagrant SSH key. It uses the
 provider's default management/NAT network without adding public networking.
