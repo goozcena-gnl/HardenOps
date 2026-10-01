@@ -1,5 +1,129 @@
 # Validation record — 0.1.0
 
+## 2026-10-01 — Rocky one-vCPU full real-VM acceptance completed
+
+**ROCKY_REAL_VM_GATE_PASS; LOCAL_REAL_VM_ACCEPTANCE_COMPLETE.** This gate
+used the adopted VirtualBox contract, the normal production workflow and
+one fresh guest. The previously sealed **UBUNTU_REAL_VM_GATE_PASS** evidence
+remained intact; its full gate was not replayed. These are selected-control
+implementation and validation evidence, not ANSSI or production certification.
+
+### Exact environment and actual guest
+
+Starting branch was `validation/v0.1-real-vm`, HEAD
+`24199bf58987788cd8ae97a8bd61d07dab9ae87c`, with a clean worktree.
+The exact cached `rockylinux/9@6.0.0`, VirtualBox amd64 artifact was reused
+without a download, update or image substitution. Cached identity and preserved
+checksum-validation provenance were checked; no new archive checksum was claimed.
+The adopted configuration remained **1 vCPU, 2048 MiB RAM** with no provider
+customization. WSL mirrored networking and DrvFS metadata were active.
+Vagrant 2.4.9 and VirtualBox 7.2.20 were operational.
+
+The isolated controller `/home/goozcena/.cache/hardenops-v01-venv` was verified
+against every direct repository pin: Python 3.12.3, ansible-core 2.21.4,
+ansible-lint/Molecule 26.8.0, ansible.posix 2.2.2 and community.docker 5.3.0,
+using the repository `ansible.cfg`. No controller recreation or upgrade occurred.
+
+Normal `make deploy DISTRO=rocky9 PROVIDER=virtualbox` created only UUID
+`4c2bf908-1cac-4785-99fb-fc34f4696115`. Actual guest observations confirmed
+**Rocky Linux 9.6**, kernel `5.14.0-570.17.1.el9_6.x86_64`, x86_64,
+one online CPU and **SELinux Enforcing**. Direct WSL SSH, Vagrant SSH,
+inventory generation/validation, Ansible ping, full facts, unprivileged UID
+1000 and sudo/become UID 0 passed before hardening and after both reboots.
+
+### Read-only baseline and profile lifecycle
+
+RPM database verification and cache-only DNF dependency checks passed.
+All 17 implemented sysctl keys existed. Baseline systemd state was degraded
+by `vboxadd.service` and `vboxadd-service.service`; these same two failures
+persisted unchanged throughout the gate. No new failed service appeared.
+SSH, NetworkManager and auditd were active; firewalld was already disabled.
+No authselect profile was configured. Packages, relevant services, authentication
+metadata and network state were preserved. Shadow and gshadow were root:root
+regular files with mode **0000**, stricter than the catalogue maximum.
+
+Minimal plan passed with target `changed=0`. Harden and second harden both
+had `ok=38 changed=0 failed=0`; independent verification had `ok=18 changed=0
+failed=0`. Reports retained **4 AUDIT_ONLY, 2 MANUAL, 21 NOT_APPLICABLE and
+1 OUT_OF_SCOPE_REFERENCE_REQUIRED**, with 0 PASS, FAIL, UNSUPPORTED or FUTURE.
+Minimal intentionally enforced no automatic control. A genuine reboot on the
+same guest changed its boot ID, restored the full connection chain and passed
+separate Minimal verification without managed-state drift.
+
+Intermediary plan passed read-only. The production harden recap was
+`ok=157 changed=17 skipped=38 failed=0 unreachable=0`. All 17 changes were
+owned sysctl persistence operations: 11 runtime values changed and six already
+accepted runtime values were retained. Both sensitive-file controls preserved
+mode 0000. Separate verification returned **19 PASS, 4 AUDIT_ONLY, 3 MANUAL,
+1 NOT_APPLICABLE and 1 OUT_OF_SCOPE_REFERENCE_REQUIRED**, with 0 FAIL,
+UNSUPPORTED or FUTURE. Second harden converged to `ok=38 changed=0 failed=0`.
+SELinux remained Enforcing after hardening and after the second genuine reboot.
+
+Three actual boot IDs prove two reboots of the same UUID:
+
+- Initial: `83312f4b-79fa-4017-9650-13f1c943e020`.
+- After Minimal: `b1b937e0-14ff-440e-98d7-f43a94eaa5e3`.
+- After Intermediary: `af60fc3d-0e84-4948-a748-62e27b185001`.
+
+All 19 automated controls were directly inspected after reboot. Each of the
+17 runtime sysctls matched its safe root-owned `99-z-hardenops-<id>.conf` file;
+no legacy `90-hardenops-<id>.conf` remained. Actual stock definitions included
+`10-default-yama-scope.conf`, `50-coredump.conf`, `50-default.conf` and
+`50-redhat.conf`. Effective directory masking and lexical order, independently
+captured with read-only `systemd-sysctl --cat-config`, selected HardenOps for
+every managed key. Stronger file modes, SELinux, package inventory, relevant
+service state and network state persisted. Rocky had neither an Apport vendor
+unit nor an Apport override directory; the Ubuntu-specific integration did not run.
+
+Every production JSON/Markdown report was checked for actual Rocky facts,
+profile, all 28 IDs, status semantics, exact catalogue digest, counts and renderer
+equivalence. Post-reboot production verification was separate from enforcement.
+
+### Actual live tests, regression and defects
+
+The repository's live Testinfra suite ran against the actual rebooted Rocky
+guest with the pinned controller: **20 passed, 0 failed, 0 skipped, 0 errors**.
+It checked distro identity, 17 runtime/owned-persistence controls and two sensitive
+file metadata controls. It does not automatically validate manual/audit policies
+or unimplemented package/service/mount/account policies.
+
+No HardenOps source or checked-in test defect was found and no shared-code fix
+was needed. Two outside-repository collector assertions were corrected: Vagrant's
+parenthesized `(amd64)` display and the existing `FUTURE=0` report-summary field.
+Original failures were retained, their causes reproduced from the unchanged
+outputs, and their complete affected audits replayed successfully. Neither
+correction changed production state, report semantics or repository tests.
+No additional Ubuntu real VM was needed; all 563 sealed Ubuntu evidence files
+remained valid and the mandatory final Ubuntu Molecule regression passed.
+
+After real-guest acceptance passed 155 checks, the complete pinned local
+regression passed **111 unit tests** (including four report tests), 28-control and
+four-profile validation, yamllint, ansible-lint with 0 failures/0 warnings,
+all four playbook syntax checks, tracked-source secret scanning, dependency audit
+with no known vulnerabilities and `git diff --check`. Empty-host syntax warnings
+were expected for syntax-only checks. Molecule Ubuntu 24.04 and Rocky 9.3 each
+passed all seven lifecycle actions, idempotence and fresh JSON/Markdown report
+audits, then removed their containers. Containers share the WSL kernel and have
+SELinux disabled; their results are separate from real Rocky kernel acceptance.
+
+The final pre-cleanup evidence audit passed 126 checks. Logs and machine state
+were captured before normal `make destroy` removed only the confirmed Rocky
+UUID and expected project connection metadata. Cached boxes were retained.
+The four unrelated VM UUIDs, powered-off states and configuration hashes remained
+unchanged. Prior Ubuntu, failed Rocky bootstrap and adopted lab evidence stayed
+sealed. No publication, push, tag or remote workflow was performed.
+
+The actual remaining limits are the pre-existing Guest Additions failures,
+selected-control/manual-review coverage, the finite one-vCPU VirtualBox scope,
+and cache-only artifact reuse (a new registry download was not tested).
+Evidence is in the local `rocky-full-gate-2026-10-01/` bundle, including complete
+callbacks, direct snapshots, preserved collector failures, JUnit, regression logs,
+cleanup records and a SHA-256 manifest. Historical records below are retained.
+
+The next action is one final publication-readiness audit consolidating Ubuntu,
+Rocky, static and Molecule evidence to decide whether the branch is ready to
+merge/publish. This gate performs no publication.
+
 ## 2026-10-01 — Rocky one-CPU lab candidate adopted
 
 **ROCKY_SINGLE_CPU_BOOT_PATH_VALIDATED; ROCKY_LAB_CANDIDATE_PASS;

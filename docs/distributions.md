@@ -17,9 +17,10 @@ connectivity. The adopted one-vCPU Ubuntu VirtualBox path has passed the local f
 Minimal-to-Intermediary real-VM gate, independent verification, idempotence and
 reboot persistence described in [validation.md](validation.md), after a focused
 R14 persistence correction. Rocky Linux 9's one-vCPU VirtualBox local lab
-has passed two scratch boots and two normal workflow smoke boots using its
-unchanged exact box and pinned controller. The full Rocky hardening/reboot
-acceptance gate remains pending; see [validation.md](validation.md).
+has passed the full cumulative Minimal-to-Intermediary real-VM gate using its
+unchanged exact box and pinned controller, including independent verification,
+idempotence, two genuine reboots, SELinux Enforcing and 20 live tests;
+see [validation.md](validation.md).
 
 The default provider is libvirt/KVM. Install libvirt, QEMU/KVM and the Vagrant
 libvirt provider using the [provider installation guide](https://vagrant-libvirt.github.io/vagrant-libvirt/installation.html).
@@ -68,9 +69,9 @@ scratch boots and two fresh normal HardenOps smoke boots then passed with
 the exact same cached `rockylinux/9@6.0.0` image at one vCPU. All four guests
 reported Rocky 9.6, one online CPU and SELinux Enforcing. This finite evidence
 does not establish a Rocky, VirtualBox or NEM/WHP defect or universal reliability.
-SMP remains outside the local VirtualBox validation contract. Full Rocky
-profile enforcement, independent verification and reboot acceptance remain
-the next gate; no such gate was run during lab adoption.
+SMP remains outside the local VirtualBox validation contract. Lab adoption
+did not run profile acceptance; the subsequent full Rocky gate passed on one
+normal fresh guest, preserving stronger defaults and SELinux through reboots.
 
 The lab disables shared folders and inserts a fresh Vagrant SSH key. It uses the
 provider's default management/NAT network without adding public networking.
