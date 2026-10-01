@@ -71,7 +71,8 @@ def test_selected_runtime_control(host, control):
         pytest.skip("UNSUPPORTED: kernel does not expose " + key)
     accepted = verification.get("accepted_values", [verification["expected"]])
     assert runtime.content_string.strip() in accepted
-    persistent = host.file("/etc/sysctl.d/90-hardenops-%s.conf" % control["id"])
+    owned_path = "/etc/sysctl.d/99-z-hardenops-%s.conf" % control["id"]
+    persistent = host.file(owned_path)
     assert persistent.is_file and not persistent.is_symlink and persistent.user == "root"
     assert not (persistent.mode & 0o022)
     assignments = []
@@ -84,6 +85,11 @@ def test_selected_runtime_control(host, control):
     assert len(assignments) == 1
     assert assignments[0][0].strip() == key
     assert assignments[0][1].strip() == runtime.content_string.strip()
+    assert not host.file("/etc/sysctl.d/90-hardenops-%s.conf" % control["id"]).exists
+    if key == "fs.suid_dumpable" and host.file("/usr/lib/systemd/system/apport.service").exists:
+        hook = host.file("/etc/systemd/system/apport.service.d/90-hardenops-suid-dumpable.conf")
+        assert hook.is_file and not hook.is_symlink and hook.user == "root" and not (hook.mode & 0o022)
+        assert hook.content_string == "[Service]\nExecStartPost=/usr/sbin/sysctl -p %s\n" % owned_path
 
 
 @pytest.mark.parametrize("control", deterministic_controls("file"), ids=lambda item: item["id"])

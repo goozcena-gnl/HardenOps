@@ -194,8 +194,8 @@ class HostReader:
         return entries, skipped, truncated
 
 
-def persistence_evidence(reader, control_id, key):
-    path = "/etc/sysctl.d/90-hardenops-%s.conf" % control_id
+def persistence_evidence(reader, control_id, key, prefix="99-z-hardenops"):
+    path = "/etc/sysctl.d/%s-%s.conf" % (prefix, control_id)
     evidence = {"path": path, "value": None, "safe_file": False, "unsafe_path": False, "exists": False}
     try:
         metadata = reader.metadata(path)
@@ -232,6 +232,44 @@ def persistence_evidence(reader, control_id, key):
     return evidence
 
 
+def apport_evidence(reader, control_id, key, sysctl_file):
+    """Apport sets suid_dumpable after sysctl.d; retain its other crash handling."""
+    required = False
+    if key == "fs.suid_dumpable":
+        for unit in ("/usr/lib/systemd/system/apport.service", "/lib/systemd/system/apport.service"):
+            try:
+                required = required or stat.S_ISREG(reader.metadata(unit).st_mode)
+            except FileNotFoundError:
+                pass
+    path = "/etc/systemd/system/apport.service.d/90-hardenops-suid-dumpable.conf"
+    content = "[Service]\nExecStartPost=/usr/sbin/sysctl -p %s\n" % sysctl_file
+    evidence = {"required": required, "path": path, "content": content,
+                "safe_file": not required, "unsafe_path": False, "mode": "0644"}
+    if not required:
+        return evidence
+    try:
+        parent = reader.metadata("/etc/systemd/system/apport.service.d")
+        if not stat.S_ISDIR(parent.st_mode) or parent.st_uid != 0 or parent.st_mode & 0o022:
+            evidence["unsafe_path"] = True
+    except FileNotFoundError:
+        pass
+    try:
+        metadata = reader.metadata(path)
+        evidence["mode"] = format(stat.S_IMODE(metadata.st_mode) & 0o644, "04o")
+        if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != 0
+                or metadata.st_mode & 0o022):
+            evidence["unsafe_path"] = True
+        elif reader.text(path) != content:
+            evidence["unsafe_path"] = True
+        else:
+            evidence["safe_file"] = True
+    except FileNotFoundError:
+        pass
+    except OSError:
+        evidence["unsafe_path"] = True
+    return evidence
+
+
 def inspect_sysctl(control, reader):
     verification = control["verification"]
     key = verification["key"]
@@ -244,27 +282,35 @@ def inspect_sysctl(control, reader):
         return dict(result="UNSUPPORTED", reason="Kernel setting unavailable: " + type(exc).__name__,
                     expected=expected, observed=None, desired=verification["expected"], needs_change=False)
     persistent = persistence_evidence(reader, control["id"], key)
+    legacy = persistence_evidence(reader, control["id"], key, "90-hardenops")
+    apport = apport_evidence(reader, control["id"], key, persistent["path"])
+    persistent["legacy"] = legacy
+    persistent["apport"] = apport
     known = accepted + verification.get("remediable_values", [])
     if verification.get("remediable_range") == [1, 511]:
         known += [str(value) for value in range(1, 512)]
-    if (persistent["unsafe_path"] or runtime not in known
+    if (persistent["unsafe_path"] or runtime not in known or legacy["unsafe_path"]
+            or (legacy["exists"] and not legacy["safe_file"]) or apport["unsafe_path"]
+            or (legacy["value"] is not None and legacy["value"] not in known)
             or (persistent["value"] is not None and persistent["value"] not in known)):
-        return dict(result="UNSUPPORTED", reason="Unsafe persistence path or unrecognized setting value; operator review required",
+        return dict(result="UNSUPPORTED", reason="Unsafe persistence or Apport override, or unrecognized setting value; operator review required",
                     expected=expected, observed={"runtime": runtime, "persistence": persistent},
                     desired=None, needs_change=False)
-    known_values = [value for value in (runtime, persistent["value"]) if value in accepted]
+    known_values = [value for value in (runtime, persistent["value"], legacy["value"]) if value in accepted]
     desired = max(known_values, key=accepted.index) if known_values else verification["expected"]
     if key == "kernel.yama.ptrace_scope" and desired == "3" and runtime != "3":
         return dict(result="UNSUPPORTED", reason="Applying persisted Yama value 3 would be irreversible until reboot; operator review required",
                     expected=expected, observed={"runtime": runtime, "persistence": persistent},
                     desired=desired, needs_change=False)
-    passed = runtime == desired and persistent["value"] == desired and persistent["safe_file"]
+    passed = (runtime == desired and persistent["value"] == desired and persistent["safe_file"]
+              and not legacy["exists"] and apport["safe_file"])
     return dict(result="PASS" if passed else "FAIL",
                 reason=("Runtime and owned persistence satisfy the selected baseline" if passed else
                         "Runtime or owned persistence differs from the strongest explicitly accepted observed value"),
                 expected=expected, observed={"runtime": runtime, "persistence": persistent},
                 desired=desired,
-                desired_persistence_mode=format(int(persistent.get("mode", "0644"), 8) & 0o644, "04o"),
+                desired_persistence_mode=format(int(persistent.get("mode", "0644"), 8)
+                                                & int(legacy.get("mode", "0644"), 8) & 0o644, "04o"),
                 needs_change=not passed)
 
 

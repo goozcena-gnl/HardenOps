@@ -1,0 +1,45 @@
+---
+- name: Inspect the Apport override directory without following links
+  ansible.builtin.stat:
+    path: /etc/systemd/system/apport.service.d
+    follow: false
+  register: kernel_apport_directory
+
+- name: Require a safe existing Apport override directory
+  ansible.builtin.assert:
+    that:
+      - not kernel_apport_directory.stat.exists or kernel_apport_directory.stat.isdir | default(false)
+      - not kernel_apport_directory.stat.islnk | default(false)
+      - not kernel_apport_directory.stat.exists or kernel_apport_directory.stat.uid == 0
+      - not kernel_apport_directory.stat.exists or kernel_apport_directory.stat.mode[-2] in ['0', '1', '4', '5']
+      - not kernel_apport_directory.stat.exists or kernel_apport_directory.stat.mode[-1] in ['0', '1', '4', '5']
+
+- name: Create the Apport override directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/apport.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "{{ kernel_apport_directory.stat.mode | default('0755') }}"
+
+- name: Recheck the owned Apport override path
+  ansible.builtin.stat:
+    path: "{{ hardenops_control.observed.persistence.apport.path }}"
+    follow: false
+  register: kernel_apport_override
+
+- name: Refuse an unsafe Apport override path
+  ansible.builtin.assert:
+    that:
+      - not kernel_apport_override.stat.exists or kernel_apport_override.stat.isreg | default(false)
+      - not kernel_apport_override.stat.islnk | default(false)
+      - not kernel_apport_override.stat.exists or kernel_apport_override.stat.uid == 0
+
+- name: Reapply only the managed privileged core-dump setting after Apport
+  ansible.builtin.copy:
+    content: "{{ hardenops_control.observed.persistence.apport.content }}"
+    dest: "{{ hardenops_control.observed.persistence.apport.path }}"
+    owner: root
+    group: root
+    mode: "{{ hardenops_control.observed.persistence.apport.mode }}"
+  notify: hardenops reload systemd metadata

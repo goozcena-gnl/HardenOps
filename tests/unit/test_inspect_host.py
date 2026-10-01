@@ -73,7 +73,7 @@ def sysctl_reader(control, runtime="1", persisted="1"):
     reader = MemoryReader()
     reader.add("/proc/sys/kernel/kptr_restrict", runtime)
     if persisted is not None:
-        reader.add("/etc/sysctl.d/90-hardenops-%s.conf" % control["id"], "kernel.kptr_restrict = %s\n" % persisted)
+        reader.add("/etc/sysctl.d/99-z-hardenops-%s.conf" % control["id"], "kernel.kptr_restrict = %s\n" % persisted)
     return reader
 
 
@@ -109,6 +109,67 @@ def test_runtime_pass_is_not_enough_without_persistence(payload, control):
     assert finding["observed"]["persistence"]["value"] is None
 
 
+def test_legacy_migration_preserves_stronger_value_and_restricted_mode(payload, control):
+    reader = sysctl_reader(control, "1", None)
+    reader.add("/etc/sysctl.d/90-hardenops-%s.conf" % control["id"], "kernel.kptr_restrict=2\n", mode=0o400)
+    finding = result(payload, reader)
+    assert finding["result"] == "FAIL" and finding["needs_change"]
+    assert finding["desired"] == "2" and finding["desired_persistence_mode"] == "0400"
+    assert Path(finding["observed"]["persistence"]["path"]).name > "99-protect-links.conf"
+
+
+@pytest.mark.parametrize("mode,uid,kind", [(0o666, 0, stat.S_IFREG), (0o644, 1000, stat.S_IFREG), (0o644, 0, stat.S_IFLNK)])
+def test_unsafe_legacy_file_is_not_migrated(payload, control, mode, uid, kind):
+    reader = sysctl_reader(control)
+    reader.add("/etc/sysctl.d/90-hardenops-%s.conf" % control["id"], "kernel.kptr_restrict=1\n", mode=mode, uid=uid, kind=kind)
+    finding = result(payload, reader)
+    assert finding["result"] == "UNSUPPORTED" and not finding["needs_change"]
+
+
+def test_matching_legacy_file_still_requires_migration(payload, control):
+    reader = sysctl_reader(control)
+    reader.add("/etc/sysctl.d/90-hardenops-%s.conf" % control["id"], "kernel.kptr_restrict=1\n")
+    assert result(payload, reader)["needs_change"]
+
+
+def apport_reader(control):
+    control["verification"] = {"type": "sysctl", "key": "fs.suid_dumpable", "expected": "0", "accepted_values": ["0"], "remediable_values": ["1", "2"]}
+    reader = MemoryReader()
+    reader.add("/proc/sys/fs/suid_dumpable", "0")
+    reader.add("/etc/sysctl.d/99-z-hardenops-%s.conf" % control["id"], "fs.suid_dumpable=0\n")
+    reader.add("/usr/lib/systemd/system/apport.service", "[Service]\nExecStart=/usr/share/apport/apport --start\n")
+    return reader
+
+
+def test_apport_start_requires_its_owned_reapplication_hook(payload, control):
+    reader = apport_reader(control)
+    finding = result(payload, reader)
+    assert finding["result"] == "FAIL" and finding["needs_change"]
+    hook = finding["observed"]["persistence"]["apport"]
+    assert hook["required"]
+    reader.add(hook["path"], hook["content"], mode=0o400)
+    finding = result(payload, reader)
+    assert finding["result"] == "PASS"
+    assert finding["observed"]["persistence"]["apport"]["mode"] == "0400"
+
+
+@pytest.mark.parametrize("unsafe", ["symlink", "writable", "unexpected_content", "directory_symlink"])
+def test_unsafe_apport_hook_is_never_replaced(payload, control, unsafe):
+    reader = apport_reader(control)
+    hook = result(payload, reader)["observed"]["persistence"]["apport"]
+    reader.add(hook["path"], hook["content"])
+    if unsafe == "symlink":
+        reader.add(hook["path"], kind=stat.S_IFLNK)
+    elif unsafe == "writable":
+        reader.add(hook["path"], hook["content"], mode=0o666)
+    elif unsafe == "unexpected_content":
+        reader.add(hook["path"], "[Service]\nExecStartPost=/bin/true\n")
+    else:
+        reader.add("/etc/systemd/system/apport.service.d", kind=stat.S_IFLNK)
+    finding = result(payload, reader)
+    assert finding["result"] == "UNSUPPORTED" and not finding["needs_change"]
+
+
 def test_missing_kernel_feature_is_unsupported(payload):
     finding = result(payload, MemoryReader())
     assert finding["result"] == "UNSUPPORTED"
@@ -123,14 +184,14 @@ def test_unknown_larger_numeric_value_is_not_assumed_stronger(payload, control):
 
 def test_persistence_unsafe_permissions_fail(payload, control):
     reader = sysctl_reader(control)
-    reader.add("/etc/sysctl.d/90-hardenops-%s.conf" % control["id"], "kernel.kptr_restrict=1", mode=0o666)
+    reader.add("/etc/sysctl.d/99-z-hardenops-%s.conf" % control["id"], "kernel.kptr_restrict=1", mode=0o666)
     assert result(payload, reader)["result"] == "FAIL"
 
 
 @pytest.mark.parametrize("content", ["kernel.kptr_restrict=1\nkernel.kptr_restrict=2", "kernel.kptr_restrict=1\nnet.ipv4.ip_forward=1", "invalid line", ""])
 def test_ambiguous_persistence_is_never_reloaded(payload, control, content):
     reader = sysctl_reader(control)
-    reader.add("/etc/sysctl.d/90-hardenops-%s.conf" % control["id"], content)
+    reader.add("/etc/sysctl.d/99-z-hardenops-%s.conf" % control["id"], content)
     finding = result(payload, reader)
     assert finding["result"] == "UNSUPPORTED"
     assert finding["needs_change"] is False
@@ -138,7 +199,7 @@ def test_ambiguous_persistence_is_never_reloaded(payload, control, content):
 
 def test_persistent_symlink_is_never_overwritten(payload, control):
     reader = sysctl_reader(control)
-    reader.add("/etc/sysctl.d/90-hardenops-%s.conf" % control["id"], kind=stat.S_IFLNK)
+    reader.add("/etc/sysctl.d/99-z-hardenops-%s.conf" % control["id"], kind=stat.S_IFLNK)
     finding = result(payload, reader)
     assert finding["result"] == "UNSUPPORTED"
     assert finding["needs_change"] is False
@@ -146,7 +207,7 @@ def test_persistent_symlink_is_never_overwritten(payload, control):
 
 def test_stricter_persistence_permissions_preserved(payload, control):
     reader = sysctl_reader(control, "0", "1")
-    reader.add("/etc/sysctl.d/90-hardenops-%s.conf" % control["id"], "kernel.kptr_restrict=1", mode=0o400)
+    reader.add("/etc/sysctl.d/99-z-hardenops-%s.conf" % control["id"], "kernel.kptr_restrict=1", mode=0o400)
     assert result(payload, reader)["desired_persistence_mode"] == "0400"
 
 
@@ -154,7 +215,7 @@ def test_yama_persisted_three_does_not_trigger_irreversible_runtime_escalation(p
     control["verification"].update(key="kernel.yama.ptrace_scope", accepted_values=["1", "2", "3"])
     reader = MemoryReader()
     reader.add("/proc/sys/kernel/yama/ptrace_scope", "1")
-    reader.add("/etc/sysctl.d/90-hardenops-%s.conf" % control["id"], "kernel.yama.ptrace_scope=3")
+    reader.add("/etc/sysctl.d/99-z-hardenops-%s.conf" % control["id"], "kernel.yama.ptrace_scope=3")
     finding = result(payload, reader)
     assert finding["result"] == "UNSUPPORTED"
     assert finding["needs_change"] is False
