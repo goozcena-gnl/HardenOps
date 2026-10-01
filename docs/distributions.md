@@ -16,7 +16,10 @@ recommended Windows route; WSL requires separately configured Vagrant/provider
 connectivity. The adopted one-vCPU Ubuntu VirtualBox path has passed the local full
 Minimal-to-Intermediary real-VM gate, independent verification, idempotence and
 reboot persistence described in [validation.md](validation.md), after a focused
-R14 persistence correction. Rocky Linux 9 real-VM acceptance remains pending.
+R14 persistence correction. Rocky Linux 9 real-VM acceptance remains pending:
+its unchanged two-vCPU VirtualBox contract stalled during fresh SMP startup
+before SSH or HardenOps execution. The attempted gate, exact-image download
+recovery and cleanup are recorded in [validation.md](validation.md).
 
 The default provider is libvirt/KVM. Install libvirt, QEMU/KVM and the Vagrant
 libvirt provider using the [provider installation guide](https://vagrant-libvirt.github.io/vagrant-libvirt/installation.html).

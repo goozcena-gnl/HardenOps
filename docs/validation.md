@@ -1,5 +1,63 @@
 # Validation record — 0.1.0
 
+## 2026-10-01 — Rocky real-VM gate blocked before HardenOps
+
+**ROCKY_REAL_VM_GATE_FAIL; LOCAL_REAL_VM_ACCEPTANCE_INCOMPLETE.** The exact
+existing Rocky contract was attempted through `make deploy DISTRO=rocky9
+PROVIDER=virtualbox`: `rockylinux/9@6.0.0`, amd64, two configured vCPUs and
+2048 MiB RAM. The existing controller pins were independently reverified:
+Python 3.12.3, ansible-core 2.21.4, ansible-lint/Molecule 26.8.0,
+ansible.posix 2.2.2 and community.docker 5.3.0. WSL mirrored networking and
+DrvFS metadata were active; Vagrant 2.4.9 and VirtualBox 7.2.20 were operational.
+
+The first deployment failed before creating any VM because the registry's
+download redirect pointed at the removed `pub/rocky/9.6` artifact. This was
+reproduced and classified **EXTERNAL_DEPENDENCY**. The exact artifact still
+exists in the [official Rocky vault](https://dl.rockylinux.org/vault/rocky/9.6/images/x86_64/).
+Its published SHA-256 matched the exact registry provider's digest,
+`b512430b42672a3ff0f72415848d96371527e82455865b6a70a865c512cf31b3`.
+A local Vagrant catalog retained the same name/version/provider/architecture
+and checksum while pointing at that archive. Standard `vagrant box add`
+verified the downloaded bytes and cached the exact pin. No repository pin,
+Vagrantfile, provider override or controller dependency changed.
+
+The resumed normal deployment created exactly one fresh project VM, UUID
+`214c37de-12df-4429-9246-9b588e4e5b4f`. Its actual provider state was two vCPUs, 2048 MiB RAM,
+I/O APIC on and localhost NAT forwarding `127.0.0.1:2222` to guest SSH.
+The guest never reached SSH readiness; Vagrant completed its normal 600-second
+boot timeout. Repeated console captures were identical at `smp: Bringing up
+secondary CPUs ...` / `smpboot: x86: Booting SMP configuration:`. WSL TCP
+connections were accepted by the forwarded port but received no SSH banner.
+VirtualBox logs recorded fallback to NEM and active Windows hypervisor/WHP.
+
+Classification: **ENVIRONMENT**, before any HardenOps Ansible execution.
+The precise boot root cause is undetermined; these observations do not establish
+an image, kernel or hypervisor defect. No lifecycle recovery, extra fresh VM,
+CPU change, boot parameter, SELinux change or host/provider setting change was
+attempted. Guest distribution/version/kernel, online CPU count and SELinux
+enforcement were not verified and must not be inferred from the box metadata
+or the early console's `SELinux: Initializing` line.
+
+Minimal, Intermediary, independent guest verification, idempotence, reboots,
+Rocky reports, live Testinfra and the final post-acceptance regression were
+**NOT RUN** because provisioning did not pass. No HardenOps source defect was
+demonstrated or fixed. Only this actual-results documentation changed, with
+tracked-source secret scanning and `git diff --check` passing.
+
+After the original deployment controller exited, the confirmed project UUID
+was destroyed through `make destroy`; remembered connection state was removed.
+All cached boxes, including the recovered exact Rocky image, were retained.
+No Molecule container was created and its test container was absent. The four
+unrelated VM UUIDs, powered-off states and configuration hashes were unchanged.
+The 563-file sealed Ubuntu evidence remained byte-for-byte unchanged and its
+completed PASS gate was not repeated. Original download/boot failures,
+redirects, checksum verification, console captures, provider logs and cleanup
+proof are retained outside the repository in `rocky-real-vm-2026-10-01/evidence`.
+
+Next action: run a controlled Rocky fresh-boot investigation on this
+VirtualBox/NEM host to resolve the observed SMP startup stall before rerunning
+the Rocky validation gate. No publication or remote workflow was started.
+
 ## 2026-10-01 — Full Ubuntu real-VM gate
 
 **UBUNTU_REAL_VM_GATE_PASS.** Exactly one fresh production-workflow Ubuntu
