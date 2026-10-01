@@ -13,9 +13,10 @@ Ansible 2.21 supports Python 3.9 on the target, including Rocky 9's default Pyth
 see the [Ansible support matrix](https://docs.ansible.com/projects/ansible-core/devel/reference_appendices/release_and_maintenance.html).
 Native Windows is not an Ansible control node. A Linux VM/controller is the
 recommended Windows route; WSL requires separately configured Vagrant/provider
-connectivity. The Ubuntu VirtualBox path has passed the local provisioning and
-connectivity gate described in [validation.md](validation.md); full VM hardening
-and reboot acceptance remain unvalidated.
+connectivity. The adopted one-vCPU Ubuntu VirtualBox path has passed the local full
+Minimal-to-Intermediary real-VM gate, independent verification, idempotence and
+reboot persistence described in [validation.md](validation.md), after a focused
+R14 persistence correction. Rocky Linux 9 real-VM acceptance remains pending.
 
 The default provider is libvirt/KVM. Install libvirt, QEMU/KVM and the Vagrant
 libvirt provider using the [provider installation guide](https://vagrant-libvirt.github.io/vagrant-libvirt/installation.html).

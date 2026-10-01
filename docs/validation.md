@@ -1,5 +1,104 @@
 # Validation record — 0.1.0
 
+## 2026-10-01 — Full Ubuntu real-VM gate
+
+**UBUNTU_REAL_VM_GATE_PASS.** Exactly one fresh production-workflow Ubuntu
+VirtualBox VM completed the cumulative Minimal and Intermediary acceptance gate
+on `cloud-image/ubuntu-24.04@20260926.0.0`, amd64, **1 vCPU**, 2048 MiB RAM,
+box-default I/O APIC and no provider override. Guest identity was Ubuntu 24.04.5
+LTS, kernel `6.8.0-142-generic`, x86_64, one online CPU. UUID: `c701d6c5-596b-4ead-a7ef-1abbeba7a7e2`.
+The image/environment investigation stayed closed; no host settings were changed.
+
+The existing `/home/goozcena/.cache/hardenops-v01-venv` was verified and reused:
+Python 3.12.3, ansible-core 2.21.4, ansible-lint 26.8.0, Molecule 26.8.0,
+ansible.posix 2.2.2 and community.docker 5.3.0. All Ansible work used the actual
+repository `ansible.cfg`. Direct SSH, Vagrant SSH, inventory validation, ping,
+full facts, harmless command and sudo/become passed.
+
+### Guest baseline and profile results
+
+The read-only baseline captured healthy package state, enabled AppArmor, all
+17 implemented sysctl keys, required path metadata and actual applicability
+inputs. Systemd was already degraded by `grub-common.service` and
+`grub-initrd-fallback.service`; cloud-init was done with a recoverable fallback
+datasource warning. These pre-existing conditions remained unchanged. The live
+suite has no baseline-only portion and was reserved for the hardened guest.
+
+Minimal plan, harden, separate verification, second harden and genuine reboot
+all passed without managed configuration changes. Its results remained four
+AUDIT_ONLY, two MANUAL, one OUT_OF_SCOPE_REFERENCE_REQUIRED and 21
+NOT_APPLICABLE; no review-only entry was claimed as automated PASS. A further
+Minimal recheck with the corrected source also passed with `changed=0`.
+
+Intermediary was applied cumulatively on the same VM. Initial enforcement
+reported `changed=17`, separate verification found 19 automated PASS and the
+second enforcement reported `changed=0`. The initial Intermediary reboot
+returned normally but independently exposed two R14 persistence defects:
+`fs.protected_fifos` reverted from 2 to 1 and `fs.suid_dumpable` from 0 to 2.
+The original failed reports, direct readings and boot journals were preserved.
+
+### Reproduced project defects and bounded correction
+
+Both failures were **PROJECT_DEFECT**, not image/provider regressions. The stock
+`99-protect-links.conf` was loaded after the old owned `90-hardenops` file.
+Installed Apport startup code subsequently set `fs.suid_dumpable=2` after
+systemd-sysctl. The focused correction uses the late `99-z-hardenops` namespace,
+validates and migrates only exact legacy control files, and preserves stronger
+accepted values and stricter modes. A validated owned Apport `ExecStartPost`
+drop-in reapplies only the privileged core-dump control file; Apport remains
+enabled and active. Unsafe paths or unknown overrides are refused. No new
+ANSSI recommendation, profile change, weakened setting or test suppression was
+introduced. Local fix commit: `ef9da437c41cf6d4be21a8cec38ae08958e55b74`.
+
+The corrected read-only plan, enforcement (`changed=36`), separate
+verification and second enforcement (`changed=0`) passed. A further genuine
+reboot of the same VM then retained all 17 runtime/persistent sysctls, both
+sensitive-file controls and observed managed service/package/file state.
+Final status counts were 19 PASS, four AUDIT_ONLY, three MANUAL, one
+NOT_APPLICABLE and one OUT_OF_SCOPE_REFERENCE_REQUIRED, with zero FAIL or
+UNSUPPORTED. There were three genuine reboots and four distinct boot IDs on
+one VM; the extra reboot was the defect-remediation replay, not a fresh VM.
+All connectivity/facts/become checks returned after each reboot. Independent
+JSON/Markdown reports agreed on all 28 IDs, statuses, guest metadata and the
+catalogue digest; all automated controls were directly cross-checked.
+
+One corrected-source Minimal attempt returned empty inspector stdout and failed
+before mutation. The exact source hash, input and interpreter subsequently
+produced JSON in direct reproductions and the production plan, then the full
+production replay passed unchanged. Its cause remains undetermined; no workaround
+or extra source change was introduced for it. Original diagnostic evidence is
+retained separately from successful stages.
+
+### Live acceptance, regression and cleanup
+
+All **20 live Testinfra cases** passed after the corrected Intermediary reboot,
+with zero skips/errors/failures: 17 sysctl runtime/persistence checks, two
+sensitive-file metadata checks and distribution identity. Audit/manual account,
+service, package and mount policies are not deterministic automated coverage.
+
+The final pinned-controller regression passed **111 unit tests**,
+28-control/four-profile validation, yamllint, ansible-lint without failures or
+warnings, all four playbook syntax checks, tracked-source secret scanning,
+dependency audit, report tests and `git diff --check`. Molecule Ubuntu and Rocky
+both passed their filesystem/idempotence/report lifecycle and cleaned up their
+test containers. These are container userspace checks, not real-kernel or Rocky
+VM validation. New regression cases cover safe legacy migration, stronger-value
+and restrictive-mode preservation, missing/valid Apport integration, and refusal
+of unsafe files, symlinks and unknown overrides.
+
+Only confirmed Ubuntu UUID `c701d6c5-596b-4ead-a7ef-1abbeba7a7e2` was destroyed through the normal
+workflow after all evidence and gates. Expected project connection state was
+removed; cached boxes were retained. The four unrelated VMs kept their UUIDs,
+powered-off states and identical configuration hashes. Logs, snapshots, reports,
+JUnit results and a hashed evidence manifest remain outside the repository.
+
+Remaining scope: third-party box provenance confidence **MEDIUM**, no independent
+registry `.box` digest, one-vCPU local validation, SMP/NEM/WHP outside this
+contract, bounded/manual audit coverage and unavailable R68 external reference.
+This finite local run does not establish universal transport reliability.
+**No Rocky real VM was started.** The single next gate is Rocky Linux 9 real-VM
+acceptance with the same exact pinned controller.
+
 ## 2026-10-01 — Ubuntu single-CPU candidate gate
 
 **SINGLE_CPU_CANDIDATE_PASS.** Two completely fresh Ubuntu VirtualBox guests
