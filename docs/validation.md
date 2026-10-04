@@ -11,8 +11,8 @@ repository-pinned dependencies, not a workstation-specific installation requirem
 
 ## 2026-10-04 — final local publication-readiness audit
 
-The audit started from a clean `validation/v0.1-real-vm` branch at
-`9e8e8f87f6a4a346be8dcbdf5225fdff28fffd73`. The actual local base is `main`
+The audit started from a clean `validation/v0.1-real-vm` branch after the completed
+Ubuntu and Rocky real-VM acceptance milestones. The actual local base is `main`
 at `5fac298b385052676126ba8b87c0ba91b97d093d`; no remote is configured.
 No real VM was started or acceptance cycle repeated. The original Ubuntu and
 Rocky PASS records, 20 successful live tests per guest, final independent reports
@@ -57,8 +57,8 @@ implementation and validation evidence, not ANSSI or production certification.
 
 ### Exact environment and actual guest
 
-Starting branch was `validation/v0.1-real-vm`, HEAD
-`24199bf58987788cd8ae97a8bd61d07dab9ae87c`, with a clean worktree.
+The gate started from a clean `validation/v0.1-real-vm` worktree containing the
+adopted Rocky one-vCPU validation-lab configuration.
 The exact cached `rockylinux/9@6.0.0`, VirtualBox amd64 artifact was reused
 without a download, update or image substitution. Cached identity and preserved
 checksum-validation provenance were checked; no new archive checksum was claimed.
@@ -364,7 +364,8 @@ accepted values and stricter modes. A validated owned Apport `ExecStartPost`
 drop-in reapplies only the privileged core-dump control file; Apport remains
 enabled and active. Unsafe paths or unknown overrides are refused. No new
 ANSSI recommendation, profile change, weakened setting or test suppression was
-introduced. Local fix commit: `ef9da437c41cf6d4be21a8cec38ae08958e55b74`.
+introduced. This is the validated Ubuntu persistence correction for
+`bp028_r14_protected_fifos` and `bp028_r14_suid_dumpable`.
 
 The corrected read-only plan, enforcement (`changed=36`), separate
 verification and second enforcement (`changed=0`) passed. A further genuine
