@@ -161,8 +161,11 @@ separately from remote GitHub Actions execution.
 ## Limitations
 
 - This is a selected control subset, not a complete ANSSI level implementation.
-- Full Vagrant/VM and reboot validation is a separate acceptance step; consult the
-  recorded test status before assuming it was executed.
+- The adopted one-vCPU VirtualBox labs passed local full Minimal-to-Intermediary
+  acceptance on Ubuntu 24.04.5 and Rocky 9.6, including genuine reboots and 20
+  live tests per guest. See the [validation record](docs/validation.md) for exact
+  versions, scope and retained limitations; libvirt and other hosts are not covered
+  by those real-VM results.
 - Only owned persistent sysctl configuration is inspected. Boot-time precedence,
   service overrides and per-interface network policy need wider VM tests.
 - Filesystem audits are bounded, report their scope and may be incomplete. They
@@ -181,8 +184,9 @@ separately from remote GitHub Actions execution.
   and immutable images, custom workload profiles, Kubernetes node hardening and
   additional framework mappings.
 
-The next acceptance milestone is the complete two-distribution Vagrant cycle:
-plan, converge, second-run idempotence, reboot and independent verification.
+Local two-distribution real-VM acceptance is complete. The remaining release step
+is publication review and remote CI after a push; the local evidence does not
+establish certification or universal provider reliability.
 
 ## References
 

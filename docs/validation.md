@@ -1,5 +1,52 @@
 # Validation record — 0.1.0
 
+Current local acceptance is **LOCAL_REAL_VM_ACCEPTANCE_COMPLETE**: the adopted
+one-vCPU VirtualBox Ubuntu and Rocky labs both passed their full real-VM gates,
+including independent verification, idempotence, genuine reboots and 20 live
+tests per guest. Entries below are dated historical records; earlier BLOCKED,
+NOT RUN and next-action statements describe those earlier milestones.
+Static/unit, Molecule/container and real-VM results remain separate evidence
+classes. The controller was an isolated Linux virtual environment with the
+repository-pinned dependencies, not a workstation-specific installation requirement.
+
+## 2026-10-04 — final local publication-readiness audit
+
+The audit started from a clean `validation/v0.1-real-vm` branch at
+`9e8e8f87f6a4a346be8dcbdf5225fdff28fffd73`. The actual local base is `main`
+at `5fac298b385052676126ba8b87c0ba91b97d093d`; no remote is configured.
+No real VM was started or acceptance cycle repeated. The original Ubuntu and
+Rocky PASS records, 20 successful live tests per guest, final independent reports
+and sealed manifests were checked separately. All 563 Ubuntu and 420 Rocky
+evidence-file hashes still match. Manifest integrity does not replace the
+original execution results.
+
+The existing isolated controller matched all eleven direct dependency pins and
+both collection pins. The final local regression passed:
+
+| Evidence class / check | Result | Actual scope |
+| --- | --- | --- |
+| Static/unit | PASS | 111 cases, including four report tests; 28 controls and four profile definitions |
+| YAML / Ansible | PASS | `yamllint`, production `ansible-lint` and all four playbook syntax checks |
+| Vagrantfile | PASS | Syntax only, using the Ruby already supplied by Vagrant |
+| Repository hygiene | PASS | Tracked secret scan, pinned dependency audit, `pip check` and diff whitespace checks |
+| Molecule / Ubuntu | PASS | Seven actions; independent fixture checks, second-run idempotence and container cleanup |
+| Molecule / Rocky | PASS | Seven actions independently; fixture checks, idempotence and cleanup |
+| Container reports | PASS | Fresh JSON/Markdown agree with the renderer, catalogue IDs and digest; no VM/kernel claim |
+| CI workflow review | PASS | Local YAML and static structure, permissions, pinned actions, commands and cleanup review; actionlint unavailable |
+| Remote GitHub Actions | NOT RUN | Requires a later push; no workflow was dispatched |
+
+Remediation is limited to factual documentation: current acceptance status,
+Apport's systemd metadata reload, a complete reproduction procedure and the dated
+Rocky archived-box/cache caveat. Personal controller paths were replaced with
+generic wording in current documentation; the nonsecret username remains in
+historical documentation commits, which were not rewritten. All non-Markdown
+sources match the sealed final Rocky gate; the sole difference from the Ubuntu
+gate is the subsequently adopted Rocky-only one-vCPU provider allocation.
+No catalogue, profile, dependency, test or hardening behavior changed. Local audit
+logs and evidence remain outside the repository and are not publication assets.
+No remaining P0/P1 release-readiness defect was identified. Publication still
+requires review of local commits, remote CI and the separate release steps.
+
 ## 2026-10-01 — Rocky one-vCPU full real-VM acceptance completed
 
 **ROCKY_REAL_VM_GATE_PASS; LOCAL_REAL_VM_ACCEPTANCE_COMPLETE.** This gate
@@ -19,7 +66,7 @@ The adopted configuration remained **1 vCPU, 2048 MiB RAM** with no provider
 customization. WSL mirrored networking and DrvFS metadata were active.
 Vagrant 2.4.9 and VirtualBox 7.2.20 were operational.
 
-The isolated controller `/home/goozcena/.cache/hardenops-v01-venv` was verified
+The isolated Linux controller environment was verified
 against every direct repository pin: Python 3.12.3, ansible-core 2.21.4,
 ansible-lint/Molecule 26.8.0, ansible.posix 2.2.2 and community.docker 5.3.0,
 using the repository `ansible.cfg`. No controller recreation or upgrade occurred.
@@ -168,7 +215,7 @@ Box/version, RAM, networking, storage, I/O APIC, catalogue, profiles, roles and
 playbooks were unchanged.
 
 Two more distinct fresh VMs passed the normal HardenOps deployment workflow
-using `/home/goozcena/.cache/hardenops-v01-venv`, Python 3.12.3,
+using the isolated Linux controller environment, Python 3.12.3,
 ansible-core 2.21.4, ansible-lint/Molecule 26.8.0, ansible.posix 2.2.2 and
 community.docker 5.3.0, with the repository `ansible.cfg`. Both confirmed
 Rocky 9.6, the same kernel, x86_64, one online CPU and SELinux Enforcing.
@@ -278,7 +325,7 @@ box-default I/O APIC and no provider override. Guest identity was Ubuntu 24.04.5
 LTS, kernel `6.8.0-142-generic`, x86_64, one online CPU. UUID: `c701d6c5-596b-4ead-a7ef-1abbeba7a7e2`.
 The image/environment investigation stayed closed; no host settings were changed.
 
-The existing `/home/goozcena/.cache/hardenops-v01-venv` was verified and reused:
+The existing isolated Linux controller environment was verified and reused:
 Python 3.12.3, ansible-core 2.21.4, ansible-lint 26.8.0, Molecule 26.8.0,
 ansible.posix 2.2.2 and community.docker 5.3.0. All Ansible work used the actual
 repository `ansible.cfg`. Direct SSH, Vagrant SSH, inventory validation, ping,
@@ -398,7 +445,7 @@ observations rather than a new string-matching unit test.
 
 ### Exact controller and fresh evidence
 
-Both attempts used `/home/goozcena/.cache/hardenops-v01-venv`: Python 3.12.3,
+Both attempts used the isolated Linux controller environment: Python 3.12.3,
 ansible-core 2.21.4, ansible-lint 26.8.0 and Molecule 26.8.0, with project collections
 ansible.posix 2.2.2 and community.docker 5.3.0. All eleven direct dependency pins
 and both collection pins were verified again; `python --version`,
@@ -824,7 +871,7 @@ the operator exceptions used by Ansible. The 19 deterministic controls each have
 an independent test case. Missing features and declared exclusions produce
 explicit skips with reasons rather than being silently counted as passes.
 
-## Next acceptance milestone
+## Historical next acceptance milestone — 2026-09-19
 
 Run the full Vagrant cycle on a configured Linux virtualization host for both
 distributions: deploy, plan, converge, second-run idempotence, reboot, verify and

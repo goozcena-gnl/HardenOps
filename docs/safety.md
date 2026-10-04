@@ -31,9 +31,12 @@ or followed. Owned sysctl symlinks are refused.
 
 Configuration is replaced through Ansible modules. The sysctl module activates
 each owned file immediately; delaying these changes in a handler would separate
-the runtime state from the persisted decision. No reload service handler is
-needed because this release edits no daemon configuration. Permission changes
-intersect existing bits with the maximum allowed mode, preserving a stricter mode.
+the runtime state from the persisted decision. When the vendor Apport service is
+present, the privileged core-dump control installs a validated, narrowly scoped
+drop-in and reloads systemd metadata through its handler. It does not restart or
+disable Apport; the drop-in reapplies only the owned sysctl file when Apport starts.
+Permission changes intersect existing bits with the maximum allowed mode,
+preserving a stricter mode.
 
 Explicit exceptions can be supplied in `hardenops_config.disabled_controls`.
 They produce NOT_APPLICABLE with an operator-disabled reason, never PASS. Keep

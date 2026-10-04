@@ -43,6 +43,19 @@ image is fully patched. Review updates before using the lab beyond isolated test
 Canonical [stopped publishing Vagrant images starting with Ubuntu 24.04](https://ubuntu.com/docs/public-images/public-images-explanation/vagrant/);
 Bento is a third-party image publisher recommended in [HashiCorp's box documentation](https://developer.hashicorp.com/vagrant/docs/boxes).
 
+The Rocky gate on 2026-10-01 observed HTTP 404 from the registry's redirected
+VirtualBox download. It reused the exact `rockylinux/9@6.0.0` amd64 artifact
+obtained from the [official Rocky 9.6 vault](https://dl.rockylinux.org/vault/rocky/9.6/images/x86_64/Rocky-9-Vagrant-Vbox.latest.x86_64.box)
+and checksum-validated before installation in the Vagrant cache. Its recorded
+archive SHA-256 is
+`b512430b42672a3ff0f72415848d96371527e82455865b6a70a865c512cf31b3`.
+A fresh contributor must check exact pinned-box availability before deployment.
+If that registry path still fails, verify the matching official archived artifact
+against the recorded digest and import it using Vagrant box metadata declaring
+the same name, version, provider and amd64 architecture. Do not substitute another
+version or treat an extracted disk digest as the archive checksum. The full gate
+reused the existing validated cache; it did not establish a working fresh download.
+
 The Ubuntu VirtualBox override selects the third-party `cloud-image` box after
 controlled local stability validation; it does not establish a Bento defect.
 The exact [registry provider/version](https://vagrantcloud.com/api/v2/box/cloud-image/ubuntu-24.04/version/20260926.0.0/provider/virtualbox/amd64)
@@ -116,12 +129,21 @@ make plan LEVEL=minimal
 make harden LEVEL=minimal
 make harden LEVEL=minimal       # inspect recap: changed=0
 make verify LEVEL=minimal
+vagrant ssh -c 'cat /proc/sys/kernel/random/boot_id'  # record before reboot
+vagrant reload
+vagrant ssh -c 'cat /proc/sys/kernel/random/boot_id'  # require a different ID
+make verify LEVEL=minimal
 make plan LEVEL=intermediary
 make harden LEVEL=intermediary
 make harden LEVEL=intermediary  # inspect recap: changed=0
 make verify LEVEL=intermediary
-vagrant reload                # deliberate reboot to validate persistence
+vagrant ssh -c 'cat /proc/sys/kernel/random/boot_id'  # record before reboot
+vagrant reload                # deliberate second reboot to validate persistence
+vagrant ssh -c 'cat /proc/sys/kernel/random/boot_id'  # require a different ID
 make verify LEVEL=intermediary
+HARDENOPS_LIVE_TESTS=1 HARDENOPS_LEVEL=intermediary \
+  pytest tests/integration --hosts=ansible://lab \
+  --ansible-inventory=.lab/inventory.yml --sudo -rs
 make harden LEVEL=minimal      # confirm profile downgrade preserves stronger state
 make verify LEVEL=intermediary
 make destroy
