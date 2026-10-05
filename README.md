@@ -184,9 +184,10 @@ separately from remote GitHub Actions execution.
   and immutable images, custom workload profiles, Kubernetes node hardening and
   additional framework mappings.
 
-Local two-distribution real-VM acceptance is complete. The remaining release step
-is publication review and remote CI after a push; the local evidence does not
-establish certification or universal provider reliability.
+Local two-distribution real-VM acceptance is complete. Remote GitHub Actions
+validation is a separate release gate, with successful runs recorded in GitHub
+Actions history. Local real-VM evidence and remote CI do not establish ANSSI
+certification or universal provider reliability.
 
 ## References
 
