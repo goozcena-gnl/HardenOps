@@ -25,6 +25,9 @@ provisioner:
 verifier:
   name: ansible
 scenario:
+  # Collections are installed by make install; always destroy scenario resources.
+  destroy_sequence:
+    - destroy
   test_sequence:
     - destroy
     - create
