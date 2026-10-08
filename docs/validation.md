@@ -9,6 +9,18 @@ Static/unit, Molecule/container and real-VM results remain separate evidence
 classes. The controller was an isolated Linux virtual environment with the
 repository-pinned dependencies, not a workstation-specific installation requirement.
 
+## 2026-10-05 — pre-publication remote CI gate
+
+The initial pre-publication GitHub Actions gate completed successfully: both
+`Static validation` and `Filesystem integration` passed. Run-specific commit
+identity and results are retained in GitHub Actions history. Each release
+candidate must pass these workflows on its own commit before publication.
+
+Remote static checks and filesystem/container integration remain separate from
+the local Ubuntu and Rocky real-VM acceptance. They do not extend the real-VM
+scope to other providers or hosts, or establish ANSSI certification. Repository
+publication and version tagging are separate release steps.
+
 ## 2026-10-04 — final local publication-readiness audit
 
 The audit started from a clean `validation/v0.1-real-vm` branch after the completed
@@ -44,8 +56,8 @@ sources match the sealed final Rocky gate; the sole difference from the Ubuntu
 gate is the subsequently adopted Rocky-only one-vCPU provider allocation.
 No catalogue, profile, dependency, test or hardening behavior changed. Local audit
 logs and evidence remain outside the repository and are not publication assets.
-No remaining P0/P1 release-readiness defect was identified. Publication still
-requires review of local commits, remote CI and the separate release steps.
+No remaining P0/P1 release-readiness defect was identified. Local acceptance,
+remote CI, publication review and version tagging are distinct release gates.
 
 ## 2026-10-01 — Rocky one-vCPU full real-VM acceptance completed
 
