@@ -1,10 +1,13 @@
 # Reviewed Python dependency lock artifacts
 
 These locks preserve a reviewed dependency snapshot. They are not yet adopted
-by `make install` or GitHub Actions: [requirements-dev.txt](../requirements-dev.txt)
-still drives existing installations. The Makefile, workflows, pyproject.toml and
-Dependabot configuration are unchanged. This page does not establish a security
-guarantee, certification or suitability for production deployment.
+by `make install` or the existing required GitHub Actions workflows:
+[requirements-dev.txt](../requirements-dev.txt) still drives those installations.
+A separate [candidate workflow](../.github/workflows/lock-validation.yml)
+validates the locked environments without replacing the existing checks.
+The Makefile, existing workflows, pyproject.toml and Dependabot configuration
+are unchanged. This page does not establish a security guarantee, certification
+or suitability for production deployment.
 
 ## Scope and recorded results
 
@@ -24,7 +27,8 @@ interpreter. Separate hash-checked binary-only downloads found compatible wheels
 for every package. Complete lock and installed-environment audits with
 **pip-audit 2.10.1** reported no known vulnerabilities or unverified entries.
 These are historical prototype results, not hosted CI results for this change.
-No Molecule, container or real-VM validation of these locks has occurred.
+The original prototype did not run Molecule, container or real-VM tests.
+Candidate CI results must be assessed separately at their exact commit SHA.
 
 The validated scope is Linux x86_64 on the recorded interpreters. Hashes for
 other distributions or platforms do not prove compatibility on those platforms.
@@ -171,6 +175,28 @@ pip installation step. It must accompany actual hash-checked installation and
 artifact validation, not substitute for them. A zero exit code alone does not
 establish complete coverage or absence of unknown vulnerabilities.
 
+## Candidate lock validation in CI
+
+The separate [candidate workflow](../.github/workflows/lock-validation.yml)
+uses Linux x86_64 runners, with Python 3.12 and 3.13 selected explicitly.
+It verifies identical direct inputs and lock pins, installs each matching lock
+into a disposable venv with `--require-hashes --only-binary=:all:`, runs
+`pip check`, audits the full lock and installed environment, then runs static
+validation and unit tests under each interpreter. A four-job Molecule matrix
+tests both locked Python controllers against Ubuntu 24.04 and Rocky Linux 9,
+including idempotence and final container destruction. The pip cache uses the
+matching lock file as its dependency key. Its automated parity check verifies
+identical direct inputs and all 11 direct pins, not transitive lock freshness.
+
+The candidate workflow runs on pull requests, pushes to `main`, and manual
+dispatch. Its checks are supplementary and are not required by the existing
+main ruleset. All existing production workflows still install from
+`requirements-dev.txt` and remain unchanged. Candidate CI execution is
+separate from the 2026-10-09 prototype: examine actual workflow results
+before claiming that a given lock or Molecule matrix has passed. Full real-VM
+validation is still out of scope; Galaxy collection dependencies remain
+outside the Python lock boundary.
+
 ## Reviewing Dependabot and security updates
 
 The existing weekly pip configuration scans the repository root. These new
@@ -185,14 +211,15 @@ but lists compiler 7.5.3, whereas this snapshot uses 7.6.2. The
 supports multiple outputs from one input while selecting one Python version for
 the operation. That is a source-based compatibility concern, not proof that a
 hosted update will fail. Correct file discovery, compiler options, hash retention
-and independent 3.12/3.13 resolution remain approval gates for future adoption.
+and independent 3.12/3.13 resolution remain approval gates for production adoption.
 
 Do not merge an update solely because a bot refreshed both output files. Require
 regeneration with the reviewed compiler and matching interpreters, full diff
 inspection, input consistency, fresh hashed installs, binary-only checks, audits
-of all lock entries and installed packages, and the applicable tests. Existing
-hosted workflows still install requirements-dev.txt, so their success does not
-demonstrate that either new lock was consumed.
+of all lock entries and installed packages, and the applicable tests. The four
+existing required jobs still install from requirements-dev.txt and do not
+demonstrate lock use. The separate candidate jobs exercise the locks and must
+be checked independently for dependency updates.
 
 For a transitive advisory, identify the affected package/version and patched
 range from primary advisory evidence. Perform a targeted reviewed
@@ -213,8 +240,12 @@ also installed community.library_inventory_filtering_v1 1.1.5 through Galaxy
 dependency resolution. These Python hashes neither pin nor audit that collection
 graph. Galaxy reproducibility requires separate review and validation.
 
-Production adoption, interpreter selection in the Makefile, workflow matrix
-changes, cache keys based on each matching lock and automated drift checks are
-future work. The `.in` duplication remains a manual review gate until then.
-Retain the existing release and support boundaries; this artifact preparation
-does not expand supported platforms or infrastructure guarantees.
+Production adoption in `make install` and the four existing required jobs,
+the supported-interpreter selection in the Makefile, and enforcement of the
+candidate jobs through branch protection remain future work. The candidate
+workflow already has a Python 3.12/3.13 matrix, per-lock cache paths and an
+automated direct-input parity check. Full transitive lock freshness and correct
+two-interpreter Dependabot regeneration still require explicit review. The
+`.in` duplication remains a coordinated maintenance obligation.
+Retain the existing release and support boundaries; these CI checks do not
+expand supported platforms or infrastructure guarantees.

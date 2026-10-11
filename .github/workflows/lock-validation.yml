@@ -1,0 +1,142 @@
+---
+name: Candidate locked Python validation
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  lock-static:
+    name: lock-static (Python ${{ matrix.python }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - python: '3.12'
+            lock: locks/py312.txt
+          - python: '3.13'
+            lock: locks/py313.txt
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: ${{ matrix.lock }}
+      - name: Check direct dependency input and lock parity
+        env:
+          LOCK_FILE: ${{ matrix.lock }}
+        run: |
+          cmp requirements-dev.txt requirements-dev.in
+          python - <<'PY'
+          from pathlib import Path
+          import os
+          import re
+
+          pin = re.compile(r"^([A-Za-z0-9_.-]+)(?:\[[^]]+\])?==([^\s\\;]+)")
+          normalize = lambda s: re.sub(r"[-_.]+", "-", s).lower()
+          direct = {}
+          for line in Path("requirements-dev.in").read_text().splitlines():
+              if not line.strip() or line.startswith("#"):
+                  continue
+              match = pin.fullmatch(line)
+              assert match, f"Unexpected direct requirement: {line}"
+              name = normalize(match[1])
+              assert name not in direct, f"Duplicate direct pin: {name}"
+              direct[name] = match[2]
+          assert len(direct) == 11, "Unexpected direct pin count"
+
+          locked = {}
+          for line in Path(os.environ["LOCK_FILE"]).read_text().splitlines():
+              match = pin.match(line)
+              if match:
+                  name = normalize(match[1])
+                  assert name not in locked, f"Duplicate lock pin: {name}"
+                  locked[name] = match[2]
+          for name, version in direct.items():
+              assert locked.get(name) == version, f"Lock mismatch: {name}"
+          print(f"Verified {len(direct)} direct pins in {os.environ['LOCK_FILE']}")
+          PY
+      - name: Install candidate lock with hashes in isolated venv
+        env:
+          LOCK_FILE: ${{ matrix.lock }}
+        run: |
+          python -m venv "$RUNNER_TEMP/hardenops-lock-venv"
+          "$RUNNER_TEMP/hardenops-lock-venv/bin/python" -m pip install \
+            --require-hashes --only-binary=:all: -r "$LOCK_FILE"
+          "$RUNNER_TEMP/hardenops-lock-venv/bin/python" -m pip check
+          echo "$RUNNER_TEMP/hardenops-lock-venv/bin" >> "$GITHUB_PATH"
+      - name: Audit the complete lock and the installed environment
+        env:
+          LOCK_FILE: ${{ matrix.lock }}
+        run: |
+          python -m pip_audit --require-hashes -r "$LOCK_FILE"
+          python -m pip_audit --require-hashes --disable-pip -r "$LOCK_FILE"
+          python -m pip_audit
+      - name: Install pinned Ansible Galaxy collections
+        run: |
+          ANSIBLE_COLLECTIONS_PATH="$GITHUB_WORKSPACE/.collections" \
+            ansible-galaxy collection install -r requirements.yml
+      - name: Validate locked toolchain and 111 unit tests
+        run: make lint validate test
+      - name: Validate Vagrant Ruby syntax
+        run: ruby -c Vagrantfile
+
+  lock-molecule:
+    name: lock-molecule (Python ${{ matrix.python }}, ${{ matrix.image }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - python: '3.12'
+            lock: locks/py312.txt
+            image: ubuntu:24.04
+          - python: '3.12'
+            lock: locks/py312.txt
+            image: rockylinux:9
+          - python: '3.13'
+            lock: locks/py313.txt
+            image: ubuntu:24.04
+          - python: '3.13'
+            lock: locks/py313.txt
+            image: rockylinux:9
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: ${{ matrix.lock }}
+      - name: Install candidate lock with hashes in isolated venv
+        env:
+          LOCK_FILE: ${{ matrix.lock }}
+        run: |
+          python -m venv "$RUNNER_TEMP/hardenops-lock-venv"
+          "$RUNNER_TEMP/hardenops-lock-venv/bin/python" -m pip install \
+            --require-hashes --only-binary=:all: -r "$LOCK_FILE"
+          "$RUNNER_TEMP/hardenops-lock-venv/bin/python" -m pip check
+          echo "$RUNNER_TEMP/hardenops-lock-venv/bin" >> "$GITHUB_PATH"
+      - name: Install pinned Ansible Galaxy collections
+        run: |
+          ANSIBLE_COLLECTIONS_PATH="$GITHUB_WORKSPACE/.collections" \
+            ansible-galaxy collection install -r requirements.yml
+      - name: Exercise filesystem checks and idempotence from locked controller
+        env:
+          HARDENOPS_TEST_IMAGE: ${{ matrix.image }}
+        run: make molecule IMAGE='${{ matrix.image }}'
+      - name: Always attempt disposable container teardown
+        if: always()
+        env:
+          MOLECULE_GLOB: tests/molecule/*/molecule.yml
+          HARDENOPS_TEST_IMAGE: ${{ matrix.image }}
+          ANSIBLE_COLLECTIONS_PATH: ${{ github.workspace }}/.collections
+        run: |
+          if command -v molecule >/dev/null 2>&1; then
+            molecule destroy -s filesystem
+          fi
