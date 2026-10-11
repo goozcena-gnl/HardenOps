@@ -24,7 +24,8 @@ interpreter. Separate hash-checked binary-only downloads found compatible wheels
 for every package. Complete lock and installed-environment audits with
 **pip-audit 2.10.1** reported no known vulnerabilities or unverified entries.
 These are historical prototype results, not hosted CI results for this change.
-No Molecule, container or real-VM validation of these locks has occurred.
+The original prototype did not run Molecule, container or real-VM tests.
+Candidate CI results must be assessed separately at their exact commit SHA.
 
 The validated scope is Linux x86_64 on the recorded interpreters. Hashes for
 other distributions or platforms do not prove compatibility on those platforms.
@@ -170,6 +171,26 @@ audits also covered all packages. This mode checks resolved entries without a
 pip installation step. It must accompany actual hash-checked installation and
 artifact validation, not substitute for them. A zero exit code alone does not
 establish complete coverage or absence of unknown vulnerabilities.
+
+## Candidate lock validation in CI
+
+The separate [candidate workflow](../.github/workflows/lock-validation.yml)
+uses Linux x86_64 runners, with Python 3.12 and 3.13 selected explicitly.
+It verifies identical direct inputs and lock pins, installs each matching lock
+into a disposable venv with `--require-hashes --only-binary=:all:`, runs
+`pip check`, audits the full lock and installed environment, then runs static
+validation and unit tests under each interpreter. A four-job Molecule matrix
+tests both locked Python controllers against Ubuntu 24.04 and Rocky Linux 9,
+including idempotence and final container destruction.
+
+The candidate workflow runs on pull requests, pushes to `main`, and manual
+dispatch. Its checks are supplementary and are not required by the existing
+main ruleset. All existing production workflows still install from
+`requirements-dev.txt` and remain unchanged. Candidate CI execution is
+separate from the 2026-10-09 prototype: examine actual workflow results
+before claiming that a given lock or Molecule matrix has passed. Full real-VM
+validation is still out of scope; Galaxy collection dependencies remain
+outside the Python lock boundary.
 
 ## Reviewing Dependabot and security updates
 
