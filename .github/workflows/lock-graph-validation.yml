@@ -75,6 +75,7 @@ jobs:
           cp "$LOCK_FILE" "$reference"
           pip-compile \
             --generate-hashes \
+            --no-reuse-hashes \
             --allow-unsafe \
             --resolver=backtracking \
             --index-url https://pypi.org/simple \
