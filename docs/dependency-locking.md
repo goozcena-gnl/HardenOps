@@ -57,8 +57,8 @@ installation commands; the duplicate `.in` file does not change their behavior.
 Until a separately reviewed adoption change removes this duplication, every
 direct dependency update must update both input files together, regenerate both
 locks with the matching interpreters, and review the resulting transitive diff.
-Reject a maintenance change that leaves these files inconsistent. No automated
-CI drift gate has been added in this phase.
+Reject a maintenance change that leaves these files inconsistent. The existing
+candidate lock workflow checks their byte parity and all 11 direct lock pins.
 
 Run this consistency check from the repository root:
 
@@ -197,6 +197,71 @@ before claiming that a given lock or Molecule matrix has passed. Full real-VM
 validation is still out of scope; Galaxy collection dependencies remain
 outside the Python lock boundary.
 
+## Candidate graph closure gate
+
+The additional optional
+[graph workflow](../.github/workflows/lock-graph-validation.yml) uses a separate
+Python 3.12/3.13 matrix. It pins pip 26.2.1, pip-tools 7.6.2, pytest 9.1.1 and
+their compiler/test dependencies, uses PyPI with its normal TLS verification,
+and verifies the running interpreter minor before resolution. These are
+isolated compiler dependencies, not changes to the 11 production direct pins.
+
+Each job copies its matching committed lock to a disposable reference file and
+recompiles requirements-dev.in under its own interpreter, without `--upgrade`.
+The [comparator](../tools/check_lock_graph.py) requires byte-identical direct
+inputs, 11 exact unmarked direct pins, the expected unique Python header,
+exactly pinned packages and SHA-256 hashes. It rejects unsupported directives,
+URLs, duplicated packages and duplicated or malformed hashes. It compares the
+entire package-name set, versions, normalized extras, formatted markers and
+complete hash sets. Comments and generator-command formatting are ignored.
+Marker formatting is normalized by packaging; this is not a general proof of
+logical equivalence between different marker expressions.
+
+For a retained independent reference, run from the repository root:
+
+```bash
+python tools/check_lock_graph.py --python 3.13 \
+  --lock locks/py313.txt --independent /tmp/reference-py313.txt
+python -m pytest -q tests/test_check_lock_graph.py
+```
+
+Repeat the independent compilation and comparison with Python 3.12 and its own
+lock/reference. A matching header alone does not authenticate the interpreter;
+retain the actual interpreter/version and compilation command evidence.
+
+This gate measures closure consistency, not the newest available versions.
+Without `--upgrade`, the resolver can keep an authentic, still-compatible older
+transitive pin. A comparator rejects that pin when the independent reference
+differs, but does not reject two matching older graphs solely because they are
+old. Use explicit targeted updates and advisory review for freshness. Hashes
+prove artifact identity, not absence of vulnerabilities or malicious code.
+
+The 15 offline tests include positive and negative cases. They are explicitly
+selected by the graph workflow: the existing pytest testpaths configuration
+selects tests/unit for `make test`, so it does not automatically collect this
+new top-level test module. Run both suites when reviewing a maintenance change.
+Hosted graph jobs and all existing checks must be inspected on an eventual PR's
+exact head. This preparation does not create a PR, change GitHub rules or claim
+hosted validation. The new graph jobs remain optional.
+
+The completed 2026-10-11 local Phase 4D trials used CPython 3.12.3 and 3.13.16,
+pip-tools 7.6.2 and pip 26.2.1. Both actual baseline locks matched their independent
+62/61-package graphs and all 1012/1010 SHA-256 values. The 15 supplied offline tests
+passed under both interpreters. Fifteen additional distinct injections into
+copies of the real locks were rejected for the intended reason under both
+interpreters, including absent/extra transitives, altered versions, hashes,
+extras and markers, malformed or duplicated entries and direct-input divergence.
+The retained actual Phase 4C bad 3.13 output was independently rechecked and
+rejected for its extra typing-extensions entry. The authentic packaging 26.2
+freshness fixture was retained by no-upgrade resolution and passed its matching
+graph comparison, confirming the limitation above.
+
+Local `make lint validate test` passed under both interpreters with 111 tests.
+An explicit combined run of tests/unit and the new module passed 126 tests under
+each interpreter. These are local preparation results, not hosted CI evidence
+for a published commit. They do not activate locks in the production Makefile
+or expand the project's support/security guarantees.
+
 ## Reviewing Dependabot and security updates
 
 The existing weekly pip configuration scans the repository root. These new
@@ -205,21 +270,39 @@ its settings have not changed. A hosted update of this exact layout has not been
 tested. Review every affected file and require both locks to remain consistent
 with both direct-input files.
 
-[GitHub documents pip-compile support](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference)
-but lists compiler 7.5.3, whereas this snapshot uses 7.6.2. The
-[Dependabot updater implementation](https://github.com/dependabot/dependabot-core/blob/main/python/lib/dependabot/python/file_updater/pip_compile_file_updater.rb)
-supports multiple outputs from one input while selecting one Python version for
-the operation. That is a source-based compatibility concern, not proof that a
-hosted update will fail. Correct file discovery, compiler options, hash retention
-and independent 3.12/3.13 resolution remain approval gates for production adoption.
+The 2026-10-11 Phase 4C isolated integration test executed the real official
+Dependabot fetcher, parser, matcher and pip-compile updater at revision
+`4725d253a379379dc85d291268d9607977b3c1af`. Its official image was pinned by
+digest and verified signed provenance. That runtime used pip-tools 7.6.1;
+independent reference resolutions used the reviewed compiler 7.6.2.
+
+The updater selected Python 3.12.13 for the whole operation and regenerated both
+locks with that interpreter. In a fixture-only requests 2.34.2 to 2.34.1 change,
+the 3.12 graph and hash sets matched the independent reference. The 3.13 output
+incorrectly included `typing-extensions==4.16.0`, producing 62 entries instead of
+61. It changed the `.in` input but left requirements-dev.txt unchanged; existing
+candidate CI catches that byte divergence. This measured result establishes an
+incompatibility for the tested layout and pinned updater, not a claim about all
+future Dependabot versions or a hosted update execution.
+
+Separate Phase 4C fixtures showed that an unnecessary hashed package and a
+still-compatible older transitive can pass direct-input checks, hashed
+installation, pip check and all three audits. Those checks do not prove an exact
+dependency closure or freshness. The
+[pinned updater implementation](https://github.com/dependabot/dependabot-core/blob/4725d253a379379dc85d291268d9607977b3c1af/python/lib/dependabot/python/file_updater/pip_compile_file_updater.rb)
+and its
+[Python selection](https://github.com/dependabot/dependabot-core/blob/4725d253a379379dc85d291268d9607977b3c1af/python/lib/dependabot/python/file_parser/python_requirement_parser.rb)
+explain why the first matching compiled-file Python header determines the
+interpreter for both outputs. Output filenames and retained comments do not
+prove which interpreter executed a compilation.
 
 Do not merge an update solely because a bot refreshed both output files. Require
 regeneration with the reviewed compiler and matching interpreters, full diff
 inspection, input consistency, fresh hashed installs, binary-only checks, audits
-of all lock entries and installed packages, and the applicable tests. The four
-existing required jobs still install from requirements-dev.txt and do not
-demonstrate lock use. The separate candidate jobs exercise the locks and must
-be checked independently for dependency updates.
+of all lock entries and installed packages, and the applicable tests. The legacy
+production jobs still install from requirements-dev.txt and do not demonstrate
+lock use. The existing candidate lock jobs exercise the locks and must also be
+inspected independently for dependency updates.
 
 For a transitive advisory, identify the affected package/version and patched
 range from primary advisory evidence. Perform a targeted reviewed
