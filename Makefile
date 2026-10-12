@@ -25,11 +25,11 @@ help:
 	@echo "make molecule IMAGE=rockylinux:9      Repeat filesystem test on Rocky Linux"
 
 install:
-	@lock_file="$( $(PYTHON) tools/select_controller_lock.py )" || exit $?; \
-	  $(PYTHON) -m pip install --require-hashes --only-binary=:all: -r "$lock_file"
+	@lock_file="$$( $(PYTHON) tools/select_controller_lock.py )" || exit $$?; \
+	  $(PYTHON) -m pip install --require-hashes --only-binary=:all: -r "$$lock_file"
 	$(PYTHON) -m pip check
-	@script_dir="$( $(PYTHON) -c 'import sysconfig; print(sysconfig.get_path("scripts"))' )" || exit $?; \
-	  "$script_dir/ansible-galaxy" collection install -r requirements.yml
+	@script_dir="$$( $(PYTHON) -c 'import sysconfig; print(sysconfig.get_path("scripts"))' )" || exit $$?; \
+	  "$$script_dir/ansible-galaxy" collection install -r requirements.yml
 
 deploy:
 	$(PYTHON) tools/lab.py deploy $(if $(DISTRO),--distro $(DISTRO)) $(if $(PROVIDER),--provider $(PROVIDER))
