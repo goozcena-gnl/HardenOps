@@ -71,6 +71,13 @@ before switching distributions. Box versions are pinned; hashes and exact provid
 availability are described by the registry sources in the provisioning guide.
 `make destroy` deletes the disposable VM; evidence is retained separately.
 
+On Linux x86_64, `make install` selects the reviewed Python 3.12/3.13
+SHA-256 lock for the active CPython interpreter, requires binary wheels, and
+checks the installed dependency graph. Unsupported interpreter versions and
+platforms fail closed. Use a **fresh virtual environment** rather than altering
+a controller from the published `v0.1.0` acceptance. See
+[dependency locking](docs/dependency-locking.md).
+
 Deployment creates an inventory from `vagrant ssh-config`, prepares a local SSH
 known-hosts file and runs the read-only baseline checks. First contact trusts the
 new local lab key; later key changes fail. SSH keys and lab state are ignored by
@@ -151,7 +158,9 @@ make hygiene
 ```
 
 GitHub Actions runs YAML/Ansible lint, syntax, catalogue/profile validation, Python
-tests, secret scanning and dependency auditing. A Docker matrix runs Molecule
+tests, secret scanning and dependency auditing. Required lint and Molecule jobs
+now install the Python 3.12 hashed lock; separate optional workflows still test
+both Python 3.12 and 3.13 locked controllers and full lock-graph closure. A Docker matrix runs Molecule
 for real filesystem enforcement, independent checks and second-run idempotence.
 Containers also exercise read-only planning. They do not validate host kernel
 changes, SELinux semantics, bootloaders, hardware security or reboot persistence.

@@ -1,13 +1,16 @@
 # Reviewed Python dependency lock artifacts
 
-These locks preserve a reviewed dependency snapshot. They are not yet adopted
-by `make install` or the existing required GitHub Actions workflows:
-[requirements-dev.txt](../requirements-dev.txt) still drives those installations.
-A separate [candidate workflow](../.github/workflows/lock-validation.yml)
-validates the locked environments without replacing the existing checks.
-The Makefile, existing workflows, pyproject.toml and Dependabot configuration
-are unchanged. This page does not establish a security guarantee, certification
-or suitability for production deployment.
+These locks preserve a reviewed dependency snapshot. On the Phase 5 adoption
+branch, `make install` selects the matching hashed lock for **CPython 3.12 or
+3.13 on Linux x86_64**, runs `pip check`, and installs the Ansible Galaxy
+collections using the same Python environment's scripts directory. The two
+existing required `lint` and Molecule workflows select Python 3.12 and now
+cache from [py312.txt](../locks/py312.txt). The
+[candidate workflow](../.github/workflows/lock-validation.yml) separately
+validates both Python versions. The two locks, direct pins, candidate
+validation workflows, pyproject.toml and Dependabot configuration are unchanged.
+This does not establish a security guarantee, certification or suitability for
+production deployment.
 
 ## Scope and recorded results
 
@@ -51,11 +54,13 @@ the file checksum and requires a new review.
 
 [requirements-dev.in](../requirements-dev.in) is a byte-identical copy of
 requirements-dev.txt, including the same 11 exact direct pins. It is the input
-to the two prototype locks. requirements-dev.txt remains the source for existing
-installation commands; the duplicate `.in` file does not change their behavior.
+to both reviewed locks. `make install` now consumes the selected lock instead of
+`requirements-dev.txt`. The latter remains a mirrored direct-pin input for
+Dependabot and the legacy `make hygiene` direct-dependency audit, but is no
+longer the controller install source.
 
-Until a separately reviewed adoption change removes this duplication, every
-direct dependency update must update both input files together, regenerate both
+Until a separately reviewed change simplifies this input layout, every direct
+dependency update must update both input files together, regenerate both
 locks with the matching interpreters, and review the resulting transitive diff.
 Reject a maintenance change that leaves these files inconsistent. The existing
 candidate lock workflow checks their byte parity and all 11 direct lock pins.
@@ -190,9 +195,11 @@ identical direct inputs and all 11 direct pins, not transitive lock freshness.
 
 The candidate workflow runs on pull requests, pushes to `main`, and manual
 dispatch. Its checks are supplementary and are not required by the existing
-main ruleset. All existing production workflows still install from
-`requirements-dev.txt` and remain unchanged. Candidate CI execution is
-separate from the 2026-10-09 prototype: examine actual workflow results
+main ruleset. The required `lint` and two Molecule jobs now install
+the Python 3.12 lock via `make install`. The `hygiene` job still installs its
+two standalone pinned scanners and audits the direct requirements file; the
+candidate lock jobs separately audit both full locks. Candidate CI execution
+is separate from the 2026-10-09 prototype: examine actual workflow results
 before claiming that a given lock or Molecule matrix has passed. Full real-VM
 validation is still out of scope; Galaxy collection dependencies remain
 outside the Python lock boundary.
@@ -259,8 +266,8 @@ graph comparison, confirming the limitation above.
 Local `make lint validate test` passed under both interpreters with 111 tests.
 An explicit combined run of tests/unit and the new module passed 126 tests under
 each interpreter. These are local preparation results, not hosted CI evidence
-for a published commit. They do not activate locks in the production Makefile
-or expand the project's support/security guarantees.
+for a published commit. They were recorded before the Phase 5 Makefile adoption and do not expand the
+project's support/security guarantees.
 
 ## Reviewing Dependabot and security updates
 
@@ -299,10 +306,10 @@ prove which interpreter executed a compilation.
 Do not merge an update solely because a bot refreshed both output files. Require
 regeneration with the reviewed compiler and matching interpreters, full diff
 inspection, input consistency, fresh hashed installs, binary-only checks, audits
-of all lock entries and installed packages, and the applicable tests. The legacy
-production jobs still install from requirements-dev.txt and do not demonstrate
-lock use. The existing candidate lock jobs exercise the locks and must also be
-inspected independently for dependency updates.
+of all lock entries and installed packages, and the applicable tests. The required `lint` and Molecule jobs now consume `locks/py312.txt` through
+`make install`; the standalone hygiene job continues to audit the mirrored
+direct requirements. The candidate lock jobs also exercise both locks and must
+be inspected independently for dependency updates.
 
 For a transitive advisory, identify the affected package/version and patched
 range from primary advisory evidence. Perform a targeted reviewed
@@ -323,12 +330,16 @@ also installed community.library_inventory_filtering_v1 1.1.5 through Galaxy
 dependency resolution. These Python hashes neither pin nor audit that collection
 graph. Galaxy reproducibility requires separate review and validation.
 
-Production adoption in `make install` and the four existing required jobs,
-the supported-interpreter selection in the Makefile, and enforcement of the
-candidate jobs through branch protection remain future work. The candidate
-workflow already has a Python 3.12/3.13 matrix, per-lock cache paths and an
-automated direct-input parity check. Full transitive lock freshness and correct
-two-interpreter Dependabot regeneration still require explicit review. The
-`.in` duplication remains a coordinated maintenance obligation.
-Retain the existing release and support boundaries; these CI checks do not
-expand supported platforms or infrastructure guarantees.
+The Phase 5 Makefile installation now selects one of the two hashed locks via
+[select_controller_lock.py](../tools/select_controller_lock.py). It fails closed
+outside CPython 3.12/3.13 on Linux x86_64; it does not install new interpreters
+or change existing environments automatically. Run `make install` only in a
+fresh, explicitly activated disposable venv (or a reviewed new controller venv).
+The prior `requirements-dev.txt` installation remains available in Git
+history for a controlled rollback. No historical `v0.1.0` artifact changes.
+
+Making candidate jobs required by branch protection, ensuring full transitive
+lock freshness and making Dependabot regenerate under the correct two
+interpreters remain separate maintenance work. The `.in` duplication remains
+a coordinated obligation. Galaxy transitive packages and real VM behavior
+remain outside the Python lock guarantee. Retain all support boundaries.
