@@ -12,7 +12,7 @@ export HARDENOPS_TEST_IMAGE := $(IMAGE)
 
 help:
 	@echo "HardenOps 0.1.0 — disposable Linux hardening lab"
-	@echo "make install                         Install controller dependencies in the active venv"
+	@echo "make install                         Install SHA256-locked controller tools in the active venv"
 	@echo "make deploy DISTRO=ubuntu2404        Boot Ubuntu 24.04 (default PROVIDER=libvirt)"
 	@echo "make deploy DISTRO=rocky9            Boot Rocky Linux 9"
 	@echo "make status                          Show remembered VM state"
@@ -25,8 +25,11 @@ help:
 	@echo "make molecule IMAGE=rockylinux:9      Repeat filesystem test on Rocky Linux"
 
 install:
-	$(PYTHON) -m pip install -r requirements-dev.txt
-	ansible-galaxy collection install -r requirements.yml
+	@lock_file="$$( $(PYTHON) tools/select_controller_lock.py )" || exit $$?; \
+	  $(PYTHON) -m pip install --require-hashes --only-binary=:all: -r "$$lock_file"
+	$(PYTHON) -m pip check
+	@script_dir="$$( $(PYTHON) -c 'import sysconfig; print(sysconfig.get_path("scripts"))' )" || exit $$?; \
+	  "$$script_dir/ansible-galaxy" collection install -r requirements.yml
 
 deploy:
 	$(PYTHON) tools/lab.py deploy $(if $(DISTRO),--distro $(DISTRO)) $(if $(PROVIDER),--provider $(PROVIDER))
