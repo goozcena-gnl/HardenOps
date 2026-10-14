@@ -343,3 +343,54 @@ lock freshness and making Dependabot regenerate under the correct two
 interpreters remain separate maintenance work. The `.in` duplication remains
 a coordinated obligation. Galaxy transitive packages and real VM behavior
 remain outside the Python lock guarantee. Retain all support boundaries.
+
+
+## Proposed guarded Dependabot lock preparation (Phase 6)
+
+The proposed `prepare-dependabot-locks.yml` workflow prepares a review artifact
+for an open, same-repository Dependabot pip PR targeting main. Automatic events
+are opened, synchronize and reopened; manual workflow_dispatch requires main,
+a PR number and its exact 40-character head SHA. It checks out the trusted base
+commit with persist-credentials disabled and requests only contents: read and
+pull-requests: read. It does not check out or execute scripts from the PR branch,
+push a commit, merge a PR, change repository rules or access repository secrets.
+
+The preflight requires eleven exact direct pins, exactly one changed version
+line, matching input bytes on the trusted base, eligible bot/branch/repository
+metadata and matching expected head/base SHAs. Only the four dependency paths
+are permitted. The validated candidate input is mirrored to both direct files;
+the PR's generated locks are not trusted or reused. The matching trusted locks
+are recompiled under actual Python 3.12 and 3.13 with pip-tools 7.6.2, pip 26.2.1,
+generate-hashes, no-reuse-hashes and no upgrade. Each result is recompiled into a
+separate reference and compared for exact graph and complete hash-set equality.
+
+The workflow produces requirements-dev.in, requirements-dev.txt, locks/py312.txt
+and locks/py313.txt, plus manifest.json and README.txt, for a seven-day Actions
+review artifact. The manifest records the PR number, base/head and file SHA-256
+values. This is a proposal for maintainer review, not an installed or accepted
+dependency update. Independent compiler/test dependencies are wheel-only pins;
+those bootstrap pins themselves are not a hashed compiler-environment lock.
+
+Before applying an artifact, independently re-read the open PR and current main
+and compare both SHAs to the manifest. If either moved, rerun preparation. The
+current prototype validates metadata before resolution but does not re-read it
+immediately before upload; it must not be described as eliminating the race
+during a long resolution. Never apply a stale artifact. Verify every checksum,
+inspect all four diffs and review the complete transitive graph and advisories.
+Any later application needs a separate maintainer-controlled commit and normal
+push, followed by all applicable CI at that new head and explicit merge approval.
+
+Local WSL tests of API reads and bundle creation cannot establish actual
+Dependabot event delivery, GITHUB_TOKEN scopes, artifact upload/retention or the
+GitHub approval model. These remain hosted acceptance gates after code review
+and separate authorization, using a legitimate eligible bot PR or controlled
+test. PR #14 must pass its own normal CI before any future merge. Repository
+rules stay unchanged; candidate checks are not automatically made required.
+
+No-upgrade resolution may retain compatible older transitives. Hash equality
+proves artifact identity and graph consistency, not freshness or freedom from
+vulnerabilities. The workflow itself does not run pip-audit or fresh candidate
+lock installations; the local gate and future candidate CI perform those
+separate checks. Galaxy dependency reproducibility and real-VM behavior remain
+outside this workflow. Existing controllers, approved dependency files, main
+and immutable v0.1.0 remain unchanged during preparation.
