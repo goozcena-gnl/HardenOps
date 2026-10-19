@@ -33,7 +33,8 @@ jobs:
     env:
       PIP_CONFIG_FILE: /dev/null
       PIP_INDEX_URL: https://pypi.org/simple
-      PIP_ONLY_BINARY: ':all:'
+      # Enforce wheel-only bootstrapping via pip install --only-binary=:all:.
+      # A global PIP_ONLY_BINARY makes pip-compile emit a forbidden lock directive.
       PIP_DISABLE_PIP_VERSION_CHECK: '1'
     steps:
       - name: Checkout trusted main without retained write credentials
