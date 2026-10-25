@@ -50,7 +50,7 @@ Windows is not an Ansible controller. Provider and WSL limitations are described
 in [distributions and provisioning](docs/distributions.md).
 
 ```bash
-python3 -m venv .venv
+python3 tools/bootstrap_python.py prepare --venv .venv
 . .venv/bin/activate
 make install
 make help
