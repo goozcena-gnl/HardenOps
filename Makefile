@@ -25,11 +25,13 @@ help:
 	@echo "make molecule IMAGE=rockylinux:9      Repeat filesystem test on Rocky Linux"
 
 install:
+	$(PYTHON) tools/bootstrap_python.py fetch
+	$(PYTHON) tools/bootstrap_python.py seed
 	@lock_file="$$( $(PYTHON) tools/select_controller_lock.py )" || exit $$?; \
-	  $(PYTHON) -m pip install --require-hashes --only-binary=:all: -r "$$lock_file"
+	  $(PYTHON) tools/bootstrap_python.py run -- $(PYTHON) -m pip install --require-hashes --only-binary=:all: -r "$$lock_file"
 	$(PYTHON) -m pip check
 	@script_dir="$$( $(PYTHON) -c 'import sysconfig; print(sysconfig.get_path("scripts"))' )" || exit $$?; \
-	  "$$script_dir/ansible-galaxy" collection install -r requirements.yml
+	  $(PYTHON) tools/bootstrap_python.py run -- "$$script_dir/ansible-galaxy" collection install -r requirements.yml
 
 deploy:
 	$(PYTHON) tools/lab.py deploy $(if $(DISTRO),--distro $(DISTRO)) $(if $(PROVIDER),--provider $(PROVIDER))
@@ -69,4 +71,4 @@ molecule:
 
 hygiene:
 	git ls-files -z | xargs -0 detect-secrets-hook
-	$(PYTHON) -m pip_audit -r requirements-dev.txt
+	$(PYTHON) tools/audit_locked.py -r requirements-dev.txt

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import importlib.util
 import json
 import os
 import re
@@ -79,6 +80,15 @@ def validate_metadata(pr: dict, repo: str, sha: str, base_sha: str) -> None:
         raise GuardError("Too many changed files")
 
 
+def _bootstrap_context():
+    spec = importlib.util.spec_from_file_location(
+        "hardenops_bootstrap", Path(__file__).with_name("bootstrap_python.py")
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.tls_context()
+
+
 def get_json(url: str, token: str) -> dict | list:
     req = urllib.request.Request(url, headers={
         "Authorization": f"Bearer {token}",
@@ -86,7 +96,7 @@ def get_json(url: str, token: str) -> dict | list:
         "X-GitHub-Api-Version": "2022-11-28",
         "User-Agent": "HardenOps-Lock-Preparation",
     })
-    with urllib.request.urlopen(req, timeout=25) as response:
+    with urllib.request.urlopen(req, timeout=25, context=_bootstrap_context()) as response:
         return json.load(response)
 
 

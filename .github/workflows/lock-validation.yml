@@ -61,11 +61,16 @@ jobs:
               assert locked.get(name) == version, f"Lock mismatch: {name}"
           print(f"Verified {len(direct)} direct pins in {os.environ['LOCK_FILE']}")
           PY
+      - name: Authenticate locked-controller bootstrap
+        run: >-
+          python tools/bootstrap_python.py prepare
+          --venv "$RUNNER_TEMP/hardenops-lock-venv"
+          --github-env "$GITHUB_ENV"
+          --github-path "$GITHUB_PATH"
       - name: Install candidate lock with hashes in isolated venv
         env:
           LOCK_FILE: ${{ matrix.lock }}
         run: |
-          python -m venv "$RUNNER_TEMP/hardenops-lock-venv"
           "$RUNNER_TEMP/hardenops-lock-venv/bin/python" -m pip install \
             --require-hashes --only-binary=:all: -r "$LOCK_FILE"
           "$RUNNER_TEMP/hardenops-lock-venv/bin/python" -m pip check
@@ -74,9 +79,9 @@ jobs:
         env:
           LOCK_FILE: ${{ matrix.lock }}
         run: |
-          python -m pip_audit --require-hashes -r "$LOCK_FILE"
-          python -m pip_audit --require-hashes --disable-pip -r "$LOCK_FILE"
-          python -m pip_audit
+          python tools/audit_locked.py --require-hashes -r "$LOCK_FILE"
+          python tools/audit_locked.py --require-hashes --disable-pip -r "$LOCK_FILE"
+          python tools/audit_locked.py
       - name: Install pinned Ansible Galaxy collections
         run: |
           ANSIBLE_COLLECTIONS_PATH="$GITHUB_WORKSPACE/.collections" \
@@ -113,11 +118,16 @@ jobs:
           python-version: ${{ matrix.python }}
           cache: pip
           cache-dependency-path: ${{ matrix.lock }}
+      - name: Authenticate locked-controller bootstrap
+        run: >-
+          python tools/bootstrap_python.py prepare
+          --venv "$RUNNER_TEMP/hardenops-lock-venv"
+          --github-env "$GITHUB_ENV"
+          --github-path "$GITHUB_PATH"
       - name: Install candidate lock with hashes in isolated venv
         env:
           LOCK_FILE: ${{ matrix.lock }}
         run: |
-          python -m venv "$RUNNER_TEMP/hardenops-lock-venv"
           "$RUNNER_TEMP/hardenops-lock-venv/bin/python" -m pip install \
             --require-hashes --only-binary=:all: -r "$LOCK_FILE"
           "$RUNNER_TEMP/hardenops-lock-venv/bin/python" -m pip check

@@ -128,12 +128,14 @@ export PIP_INDEX_URL=https://pypi.org/simple
 unset PIP_EXTRA_INDEX_URL PIP_TRUSTED_HOST
 export PIP_CACHE_DIR="$WORK/pip-cache"
 
-python3.12 -m venv "$WORK/resolver-py312"
-python3.13 -m venv "$WORK/resolver-py313"
+python3.12 tools/bootstrap_python.py prepare --venv "$WORK/resolver-py312"
+python3.13 tools/bootstrap_python.py prepare --venv "$WORK/resolver-py313"
 for minor in 312 313; do
-  "$WORK/resolver-py$minor/bin/python" -m pip install \
-    --index-url https://pypi.org/simple pip==26.2.1 pip-tools==7.6.2
+  "$WORK/resolver-py$minor/bin/python" tools/bootstrap_python.py run -- \
+    "$WORK/resolver-py$minor/bin/python" -m pip install \
+    --index-url https://pypi.org/simple pip==26.2.2 pip-tools==7.6.2
   CUSTOM_COMPILE_COMMAND="pip-compile --generate-hashes --allow-unsafe --resolver=backtracking --index-url https://pypi.org/simple --no-emit-index-url --no-emit-trusted-host --output-file locks/py$minor.txt requirements-dev.in" \
+    "$WORK/resolver-py$minor/bin/python" tools/bootstrap_python.py run -- \
     "$WORK/resolver-py$minor/bin/pip-compile" \
     --generate-hashes --allow-unsafe --resolver=backtracking \
     --index-url https://pypi.org/simple \
@@ -155,17 +157,17 @@ For each lock, create a separate disposable validation venv with its matching
 interpreter. For example, after setting WORK and the PyPI settings above:
 
 ```bash
-python3.12 -m venv "$WORK/validation-py312"
+python3.12 tools/bootstrap_python.py prepare --venv "$WORK/validation-py312"
 PYTHON="$WORK/validation-py312/bin/python"
 LOCK=locks/py312.txt
-"$PYTHON" -m pip install --index-url https://pypi.org/simple pip==26.2.1
-"$PYTHON" -m pip install --require-hashes -r "$LOCK"
+"$PYTHON" tools/bootstrap_python.py run -- "$PYTHON" -m pip install --index-url https://pypi.org/simple pip==26.2.2
+"$PYTHON" tools/bootstrap_python.py run -- "$PYTHON" -m pip install --require-hashes -r "$LOCK"
 "$PYTHON" -m pip check
-"$PYTHON" -m pip download --require-hashes --only-binary=:all: \
+"$PYTHON" tools/bootstrap_python.py run -- "$PYTHON" -m pip download --require-hashes --only-binary=:all: \
   -r "$LOCK" --dest "$WORK/wheels-py312"
-"$PYTHON" -m pip_audit --require-hashes -r "$LOCK"
-"$PYTHON" -m pip_audit --require-hashes --disable-pip -r "$LOCK"
-"$PYTHON" -m pip_audit
+"$PYTHON" tools/audit_locked.py --require-hashes -r "$LOCK"
+"$PYTHON" tools/audit_locked.py --require-hashes --disable-pip -r "$LOCK"
+"$PYTHON" tools/audit_locked.py
 ```
 
 Repeat independently with python3.13, validation-py313, locks/py313.txt and a
@@ -394,3 +396,39 @@ lock installations; the local gate and future candidate CI perform those
 separate checks. Galaxy dependency reproducibility and real-VM behavior remain
 outside this workflow. Existing controllers, approved dependency files, main
 and immutable v0.1.0 remain unchanged during preparation.
+
+
+## Authenticated Python bootstrap
+
+The bootstrap helper uses only the standard library before installing any package.
+It downloads the reviewed pip 26.2.2 universal wheel through an explicit public CA
+bundle copied unchanged from certifi 2026.10.19, checks the fixed SHA-256, rejects
+all redirects, and installs from a private verified snapshot with no index,
+dependencies or network access. It never modifies a base Python or system CA store.
+The bootstrap CA file and its MPL notice live in `tools/bootstrap/`; updating that
+trust snapshot requires review and a corresponding hash change. No certificate
+authority is issued or managed by HardenOps.
+
+Use `python3 tools/bootstrap_python.py prepare --venv .venv`, then activate that
+venv. `make install` authenticates the cached wheel before seeding the active venv
+and hash-installing its selected lock. The target workspace and venv must be
+administrator-controlled Linux directories. Cache corruption fails closed rather
+than silently replacing unexpected bytes. A missing network cannot establish TLS
+safety: provide the authenticated wheel offline or retry through the approved TLS
+path. Ambient proxy configuration is not used by the initial downloader.
+
+Run each of the same three audits through `python tools/audit_locked.py`: the
+resolved hashed lock, the hashed lock with `--disable-pip`, and the installed
+environment. No gate is removed. The wrapper requires pip-audit 2.10.1, replaces
+only its temporary-environment seed with the authenticated wheel, and delegates
+to its original resolver and advisory engine. Both requirements and project
+sources use the adapter. A process constraint keeps pip at 26.2.2 during the
+auditor's auxiliary upgrade; all direct dependency pins remain unchanged.
+
+The wrapper and `bootstrap_python.py run -- COMMAND` use a private approved CA
+snapshot and empty OpenSSL capath for their subprocesses. They do not certify
+other applications' stores or alter WSL/Windows trust. The audited requirement
+and project files remain trusted administrator-reviewed configuration. Use only
+the configured HTTPS indexes and no trusted-host/TLS-bypass directives.
+GitHub jobs create isolated controller/compiler venvs before package downloads;
+actual runner images and stores require hosted validation at the final revision.
