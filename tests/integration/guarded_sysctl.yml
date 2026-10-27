@@ -1,0 +1,127 @@
+---
+# Explicit disposable-container fixture; fake kernel only, no real sysctl call.
+- name: Test the actual streamed inspector and shared sysctl role
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  environment:
+    HARDENOPS_GUARD_FIXTURES: '1'
+  vars:
+    ansible_facts:
+      python:
+        executable: /tmp/hardenops-guard-python
+    fixture_control:
+      id: bp028_r14_guard_fixture
+      level: intermediary
+      domain: filesystem
+      source:
+        document: Test fixture
+        recommendation: fixture
+      enforcement:
+        status: AUTOMATED
+      applicability:
+        os_families: [Debian, RedHat]
+      verification:
+        type: sysctl
+        key: fs.suid_dumpable
+        expected: '0'
+        accepted_values: ['0']
+        remediable_values: ['1', '2']
+    hardenops_request:
+      hardenops_version: >-
+        {{ lookup('ansible.builtin.file', playbook_dir + '/../../VERSION',
+                  lstrip=false, rstrip=false) | regex_replace('\r?\n\Z', '') }}
+      level: intermediary
+      config:
+        workload_profile: generic_server
+        network:
+          routing: false
+          ipv6_required: true
+      facts:
+        distribution: Ubuntu
+        distribution_version: '24.04'
+        os_family: Debian
+      controls: ["{{ fixture_control }}"]
+  handlers:
+    - name: Record the fixture systemd metadata reload
+      listen: hardenops reload systemd metadata
+      ansible.builtin.set_fact:
+        fixture_metadata_reloaded: true
+  tasks:
+    - name: Confirm this is the explicitly selected disposable container
+      ansible.builtin.stat:
+        path: /.dockerenv
+      register: fixture_container
+    - name: Refuse fixture execution outside a disposable container
+      ansible.builtin.assert:
+        that:
+          - fixture_container.stat.exists
+          - lookup('ansible.builtin.env', 'HARDENOPS_GUARD_FIXTURES') == '1'
+    - name: Install the interpreter fixture only in the disposable container
+      ansible.builtin.copy:
+        dest: /tmp/hardenops-guard-python
+        content: "{{ lookup('ansible.builtin.file', playbook_dir + '/guarded_sysctl_python.py') }}"
+        mode: '0700'
+    - name: Initialize the fake kernel
+      ansible.builtin.copy:
+        dest: /tmp/hardenops-guard-kernel.json
+        content: '{"fs.suid_dumpable": "2"}'
+        mode: '0600'
+    - name: Ensure the disposable configuration directories exist
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - /etc/sysctl.d
+        - /etc/systemd/system
+        - /usr/lib/systemd/system
+    - name: Install a disposable vendor unit for applicability
+      ansible.builtin.copy:
+        dest: /usr/lib/systemd/system/apport.service
+        content: "[Service]\n"
+        mode: '0644'
+    - name: Observe the fake kernel through the actual streamed inspector
+      ansible.builtin.import_tasks: ../../ansible/tasks/observe.yml
+    - name: Select the freshly observed control
+      ansible.builtin.set_fact:
+        hardenops_control: "{{ hardenops_observation.controls[0] }}"
+    - name: Require release provenance from the controller request
+      ansible.builtin.assert:
+        that: hardenops_observation.hardenops_version == hardenops_request.hardenops_version
+    - name: Execute the shared production role with fake kernel operations
+      ansible.builtin.include_tasks: ../../ansible/roles/kernel/tasks/runtime.yml
+    - name: Require initial persistence and Apport changes
+      ansible.builtin.assert:
+        that:
+          - (kernel_guarded_sysctl.stdout | from_json).changed
+          - (kernel_guarded_sysctl.stdout | from_json).apport_changed
+    - name: Flush the fixture metadata notification
+      ansible.builtin.meta: flush_handlers
+    - name: Confirm the production role notified metadata reload
+      ansible.builtin.assert:
+        that: fixture_metadata_reloaded | default(false)
+    - name: Observe fresh independent evidence
+      ansible.builtin.import_tasks: ../../ansible/tasks/observe.yml
+    - name: Require independent PASS
+      ansible.builtin.assert:
+        that: hardenops_observation.controls[0].result == 'PASS'
+    - name: Select the fresh decision for idempotence
+      ansible.builtin.set_fact:
+        hardenops_control: "{{ hardenops_observation.controls[0] }}"
+    - name: Repeat the exact shared production path
+      ansible.builtin.include_tasks: ../../ansible/roles/kernel/tasks/runtime.yml
+    - name: Require zero changes on the second application
+      ansible.builtin.assert:
+        that:
+          - not (kernel_guarded_sysctl.stdout | from_json).changed
+          - not (kernel_guarded_sysctl.stdout | from_json).apport_changed
+    - name: Read the fake activation audit
+      ansible.builtin.slurp:
+        src: /tmp/hardenops-guard-calls.jsonl
+      register: fixture_calls
+    - name: Require a single explicit key activation with no file reload
+      ansible.builtin.assert:
+        that:
+          - (fixture_calls.content | b64decode).splitlines() | length == 1
+          - (fixture_calls.content | b64decode | from_json) == ['/usr/sbin/sysctl', '-w', 'fs.suid_dumpable=0']

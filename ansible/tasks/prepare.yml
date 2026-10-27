@@ -53,6 +53,10 @@
   ansible.builtin.set_fact:
     hardenops_request:
       host: "{{ inventory_hostname }}"
+      # VERSION belongs to the controller; remove at most one final line ending.
+      hardenops_version: >-
+        {{ lookup('ansible.builtin.file', playbook_dir + '/../../VERSION',
+                  lstrip=false, rstrip=false) | regex_replace('\r?\n\Z', '') }}
       catalogue:
         version: "{{ hardenops_catalog.version }}"
         sha256: "{{ lookup('ansible.builtin.file', playbook_dir + '/../../controls/anssi_bp_028.yml', rstrip=false) | hash('sha256') }}"

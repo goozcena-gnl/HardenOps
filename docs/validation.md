@@ -891,3 +891,39 @@ distributions: deploy, plan, converge, second-run idempotence, reboot, verify an
 Testinfra. Also verify that a downgrade to Minimal preserves the prior Intermediary
 state. Keep both pre- and post-reboot evidence. The procedure is described in
 [distributions.md](distributions.md).
+
+## 2026-10-24 — v0.1.1 preparation; release acceptance pending
+
+This section records preparation, not a completed v0.1.1 acceptance. All text
+above remains the historical 0.1.0 validation record. No old result is upgraded
+or attributed to a new release commit.
+
+A-01 is the 12-file security fix prepared against the public v0.1.0 baseline.
+Its existing local acceptance records report 215 passing tests on each of
+Python 3.12 and 3.13, static checks, separate Ubuntu/Rocky filesystem-container
+coverage, and targeted Ubuntu 24.04.5 / Rocky 9.6 VM checks. These are prior local
+A-01 results; neither temporary-private-fork CI nor final public v0.1.1 CI is
+claimed. Detailed private operational evidence is not a release asset.
+
+B-01 is a separate five-file follow-up. The controller VERSION value is sent in
+the internal inspector request and reported as hardenops_version. It accepts a
+canonical stable ASCII MAJOR.MINOR.PATCH string and rejects missing or malformed
+values without a fallback. Existing local B-01 records report 246 passing tests
+on each of Python 3.12 and 3.13, 18/18 expected Ansible transport outcomes,
+static checks, and sysctl/Apport integration with simulated kernel operations.
+Those records do not establish real-kernel, VM reboot, or final public CI results.
+For this metadata candidate VERSION is 0.1.1; release acceptance must verify an
+actual generated report carries hardenops_version=0.1.1 on the integrated SHA.
+
+The latest Rocky sequence required a cold restart after a warm-reboot incident;
+it does not validate an unattended warm reboot. SELinux qualification applies
+only to the tested Rocky policy. Hostile root concurrency, arbitrary ACL/xattr
+preservation and custom SELinux policies are not covered. Apport retains a
+protected canonical-file reload. A successful verifier exit does not establish
+zero UNSUPPORTED controls; inspect the detailed JSON.
+
+Before tagging, record the exact final public SHA, required GitHub check results,
+Python 3.12/3.13 outcomes, container/VM evidence scope and the human decision on
+remaining risks. No final v0.1.1 validation, merge, tag or publication is recorded
+here. These historical results must not be substituted for checks on the final
+integrated revision.

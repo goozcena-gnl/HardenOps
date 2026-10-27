@@ -1,12 +1,19 @@
 """Host-state decision tests use synthetic Linux metadata, never harden the test host."""
 
 import copy
+import hashlib
 import importlib.util
+import json
 import stat
+import subprocess
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+
+from tools.generate_report import render_report
+from tools.sysctl_guard import UnsafePath, safe_metadata
 
 MODULE = Path(__file__).resolve().parents[2] / "tools" / "inspect_host.py"
 SPEC = importlib.util.spec_from_file_location("inspect_host", MODULE)
@@ -20,9 +27,33 @@ class MemoryReader:
         self.commands = []
         self.command_output = {"available": True, "lines": ["nginx.service enabled", "sshd.service enabled"]}
         self.directory_entries = {}
+        for path in ("/", "/etc", "/etc/sysctl.d", "/etc/systemd", "/etc/systemd/system"):
+            self.add(path, mode=0o755, kind=stat.S_IFDIR)
 
     def add(self, path, text="", mode=0o644, uid=0, gid=0, kind=stat.S_IFREG):
-        self.files[path] = (text, SimpleNamespace(st_mode=kind | mode, st_uid=uid, st_gid=gid))
+        self.files[path] = (text, SimpleNamespace(st_mode=kind | mode, st_uid=uid, st_gid=gid, st_nlink=1))
+
+    def read_owned(self, absolute, missing_ok=False):
+        parents, missing = [], []
+        for parent in reversed(Path(absolute).parents):
+            name = str(parent)
+            if missing or name not in self.files:
+                if not missing_ok:
+                    raise UnsafePath("Missing owned directory")
+                missing.append(name)
+                continue
+            if not safe_metadata(self.metadata(name), directory=True):
+                raise UnsafePath("Untrusted owned directory")
+            parents.append(name)
+        if missing or absolute not in self.files:
+            return {"exists": False, "content": None, "parents": parents, "missing_parents": missing}
+        metadata = self.metadata(absolute)
+        if not safe_metadata(metadata):
+            raise UnsafePath("Untrusted owned file")
+        text = self.text(absolute)
+        return {"exists": True, "content": text, "mode": format(stat.S_IMODE(metadata.st_mode), "04o"),
+                "uid": metadata.st_uid, "gid": metadata.st_gid, "parents": parents,
+                "missing_parents": [], "sha256": hashlib.sha256(text.encode()).hexdigest()}
 
     def text(self, path, limit=256000):
         if path not in self.files:
@@ -63,7 +94,7 @@ def control():
 
 @pytest.fixture
 def payload(control):
-    return {"host": "unit.example", "controls": [control], "level": "intermediary",
+    return {"host": "unit.example", "hardenops_version": "0.1.0", "controls": [control], "level": "intermediary",
             "config": {"workload_profile": "generic_server", "network": {"routing": False, "ipv6_required": True}},
             "facts": {"distribution": "Ubuntu", "distribution_version": "24.04", "os_family": "Debian",
                       "architecture": "x86_64", "kernel": "6.8.0-test"}}
@@ -87,6 +118,63 @@ def test_runtime_and_owned_persistence_pass(payload, control):
     assert report["summary"]["results"]["PASS"] == 1
     assert report["summary"]["changes_required"] == 0
     assert report["controls"][0]["source"] == control["source"]
+
+
+@pytest.mark.parametrize("version", ["0.0.0", "0.1.0", "0.1.1", "1.2.3", "12.34.567"])
+def test_controller_release_version_is_reported_without_guest_file(payload, control, version):
+    payload["hardenops_version"] = version
+    # MemoryReader has no VERSION file. All observations use the normal reader.
+    report = inspector.inspect(payload, sysctl_reader(control))
+    assert report["hardenops_version"] == version
+    assert report["schema_version"] == 1
+    assert report["controls"][0]["result"] == "PASS"
+    assert "**PASS**" in render_report(report)
+
+
+@pytest.mark.parametrize("version", [None, True, 1, 0.1, [], {}, "", "0.1", "v0.1.1",
+                                    "01.1.1", "1.01.1", "1.1.01", "-1.2.3", "1.2.3-rc.1",
+                                    "1.2.3+build", " 1.2.3", "1.2.3 ", "1.2.3\n", "1.2.3\r\n",
+                                    "1.2.3\x00", "1.2.3\n9.9.9", "１.2.3", "1.٢.3"])
+def test_invalid_controller_version_fails_before_host_observation(payload, version, monkeypatch):
+    payload["hardenops_version"] = version
+    monkeypatch.setattr(inspector, "HostReader", lambda: pytest.fail("Host observation must not start"))
+    with pytest.raises(ValueError, match="hardenops_version"):
+        inspector.inspect(payload)
+
+
+def test_missing_controller_version_has_no_legacy_default(payload, monkeypatch):
+    payload.pop("hardenops_version")
+    monkeypatch.setattr(inspector, "HostReader", lambda: pytest.fail("Host observation must not start"))
+    with pytest.raises(ValueError, match="hardenops_version"):
+        inspector.inspect(payload)
+
+
+def test_release_version_only_changes_report_provenance(payload, control):
+    original = inspector.inspect(payload, sysctl_reader(control, "2", "2"))
+    payload["hardenops_version"] = "8.9.10"
+    future = inspector.inspect(payload, sysctl_reader(control, "2", "2"))
+    assert original["hardenops_version"] == "0.1.0"
+    assert future["hardenops_version"] == "8.9.10"
+    assert future["controls"][0]["desired"] == "2"
+    # Collection time is naturally independent of release provenance.
+    original["generated_at"] = future["generated_at"]
+    assert render_report(original) == render_report(future)
+    original["hardenops_version"] = future["hardenops_version"]
+    assert original == future
+
+
+def test_cli_rejects_missing_version_without_emitting_a_report(payload):
+    payload.pop("hardenops_version")
+    # Exercise the same module-streaming entry point as observe.yml, in isolation.
+    guard = (MODULE.parent / "sysctl_guard.py").read_text(encoding="utf-8")
+    script = ("import sys, types; guard = types.ModuleType('sysctl_guard'); "
+              f"exec({guard!r}, guard.__dict__); sys.modules['sysctl_guard'] = guard; "
+              f"exec({MODULE.read_text(encoding='utf-8')!r})")
+    result = subprocess.run([sys.executable, "-I", "-c", script], input=json.dumps(payload),
+                            capture_output=True, text=True, check=False, timeout=10)
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert "hardenops_version" in result.stderr
 
 
 def test_stronger_explicitly_accepted_value_preserved(payload, control):
@@ -138,6 +226,7 @@ def apport_reader(control):
     reader.add("/proc/sys/fs/suid_dumpable", "0")
     reader.add("/etc/sysctl.d/99-z-hardenops-%s.conf" % control["id"], "fs.suid_dumpable=0\n")
     reader.add("/usr/lib/systemd/system/apport.service", "[Service]\nExecStart=/usr/share/apport/apport --start\n")
+    reader.add("/etc/systemd/system/apport.service.d", mode=0o755, kind=stat.S_IFDIR)
     return reader
 
 
@@ -182,10 +271,22 @@ def test_unknown_larger_numeric_value_is_not_assumed_stronger(payload, control):
     assert finding["needs_change"] is False
 
 
-def test_persistence_unsafe_permissions_fail(payload, control):
+@pytest.mark.parametrize("mode,uid", [(0o666, 0), (0o644, 1000)])
+def test_unsafe_current_persistence_is_refused(payload, control, mode, uid):
     reader = sysctl_reader(control)
-    reader.add("/etc/sysctl.d/99-z-hardenops-%s.conf" % control["id"], "kernel.kptr_restrict=1", mode=0o666)
-    assert result(payload, reader)["result"] == "FAIL"
+    reader.add("/etc/sysctl.d/99-z-hardenops-%s.conf" % control["id"], "kernel.kptr_restrict=1", mode=mode, uid=uid)
+    finding = result(payload, reader)
+    assert finding["result"] == "UNSUPPORTED" and not finding["needs_change"]
+
+
+@pytest.mark.parametrize("path", ["/", "/etc", "/etc/sysctl.d"])
+@pytest.mark.parametrize("mode,uid,kind", [(0o777, 0, stat.S_IFDIR), (0o755, 1000, stat.S_IFDIR),
+                                          (0o755, 0, stat.S_IFLNK)])
+def test_untrusted_persistence_parents_never_pass(payload, control, path, mode, uid, kind):
+    reader = sysctl_reader(control)
+    reader.add(path, mode=mode, uid=uid, kind=kind)
+    finding = result(payload, reader)
+    assert finding["result"] == "UNSUPPORTED" and not finding["needs_change"]
 
 
 @pytest.mark.parametrize("content", ["kernel.kptr_restrict=1\nkernel.kptr_restrict=2", "kernel.kptr_restrict=1\nnet.ipv4.ip_forward=1", "invalid line", ""])

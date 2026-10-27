@@ -29,12 +29,28 @@ tradeoffs appear in the source catalogue and plan. Unknown or missing interfaces
 are UNSUPPORTED, not PASS. Missing or symlinked sensitive files are not created
 or followed. Owned sysctl symlinks are refused.
 
-Configuration is replaced through Ansible modules. The sysctl module activates
-each owned file immediately; delaying these changes in a handler would separate
-the runtime state from the persisted decision. When the vendor Apport service is
+Owned sysctl storage is handled by a streamed standard-library Python guard.
+It traverses root-owned, non-writable directories using no-follow directory
+descriptors, checks metadata and content on the same file descriptor, and refuses
+unsafe current files as well as unsafe legacy files. Missing or changed inspection
+preconditions require a new plan; unsafe parents are never repaired automatically.
+The guard publishes exactly one approved assignment atomically, with restrictive
+metadata already set, then activates only the explicit key/value. It never passes
+guest-supplied file content to an immediate `sysctl -p` reload.
+
+This is not an atomic multi-resource transaction. Snapshot comparisons detect
+stale observations but cannot serialize hostile root or other privileged
+configuration writers. Run one configuration writer at a time. A later failure
+can leave safe persistence installed or a key activated; review fresh evidence
+and replan rather than automatically rolling back or weakening state.
+
+When the vendor Apport service is
 present, the privileged core-dump control installs a validated, narrowly scoped
-drop-in and reloads systemd metadata through its handler. It does not restart or
+drop-in through the same guarded storage and reloads systemd metadata through its handler. It does not restart or
 disable Apport; the drop-in reapplies only the owned sysctl file when Apport starts.
+That startup reload relies on the root-owned canonical file and trusted parents
+remaining protected; changes by root and full boot precedence remain outside this
+guarantee. The Python helper is streamed, not persistently installed on the guest.
 Permission changes intersect existing bits with the maximum allowed mode,
 preserving a stricter mode.
 
