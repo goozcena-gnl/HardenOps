@@ -256,11 +256,23 @@ def test_invalid_decisions_refused_before_manager_access(root, edit):
 
 
 def test_cli_keeps_reload_error_failed_and_without_json(monkeypatch, capsys):
+    monkeypatch.setattr(reload.os, "geteuid", lambda: 0)
     monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps({"control": policy(), "check": False})))
     monkeypatch.setattr(reload, "reconcile", lambda *args, **kwargs: (_ for _ in ()).throw(OSError("fixture reload failed")))
     assert reload.main() == 2
     output = capsys.readouterr()
     assert output.out == "" and "fixture reload failed" in output.err
+
+
+@pytest.mark.parametrize("check", [False, True])
+def test_cli_refuses_non_root_before_reconcile(monkeypatch, capsys, check):
+    monkeypatch.setattr(reload.os, "geteuid", lambda: 1000)
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps({"control": policy(), "check": check})))
+    monkeypatch.setattr(reload, "reconcile", lambda *args, **kwargs: pytest.fail("No reconciliation expected"))
+    assert reload.main() == 2
+    output = capsys.readouterr()
+    assert output.out == ""
+    assert output.err == "Apport metadata refused: Root and an explicit check-mode Boolean are required\n"
 
 
 WORKER = r'''
