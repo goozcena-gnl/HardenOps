@@ -1,7 +1,20 @@
 ---
-# The guard already installed the exact override through trusted descriptors.
-- name: Notify systemd only when the guarded Apport override changed
-  ansible.builtin.debug:
-    msg: The guarded Apport override changed; reload systemd metadata.
-  changed_when: not ansible_check_mode
-  notify: hardenops reload systemd metadata
+# Revalidate disk storage and the loaded command, including after a failed guard.
+- name: Reconcile the owned Apport command with loaded systemd metadata
+  ansible.builtin.command:
+    argv:
+      - "{{ ansible_facts.python.executable }}"
+      - -I
+      - -c
+      - >-
+        import sys, types;
+        guard = types.ModuleType('sysctl_guard');
+        exec({{ lookup('ansible.builtin.file', playbook_dir + '/../../tools/sysctl_guard.py') | to_json }}, guard.__dict__);
+        sys.modules['sysctl_guard'] = guard;
+        exec({{ lookup('ansible.builtin.file', playbook_dir + '/../../tools/apport_reload.py') | to_json }})
+    stdin: "{{ {'control': hardenops_control, 'check': ansible_check_mode} | to_json }}"
+  register: kernel_apport_metadata
+  changed_when: >-
+    kernel_apport_metadata.rc == 0 and
+    (kernel_apport_metadata.stdout | from_json).changed | bool
+  check_mode: false

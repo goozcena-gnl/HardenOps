@@ -1,18 +1,22 @@
 ---
 # One guarded process owns validation-to-use, canonical persistence, explicit
 # key/value activation, legacy migration and the conditional Apport drop-in.
-- name: Apply the approved sysctl decision through descriptor-bound storage
-  ansible.builtin.command:
-    argv:
-      - "{{ ansible_facts.python.executable }}"
-      - -I
-      - -c
-      - "{{ lookup('ansible.builtin.file', playbook_dir + '/../../tools/sysctl_guard.py') }}"
-    stdin: "{{ {'control': hardenops_control, 'check': ansible_check_mode} | to_json }}"
-  register: kernel_guarded_sysctl
-  changed_when: (kernel_guarded_sysctl.stdout | from_json).changed | bool
-  check_mode: false
-
-- name: Preserve the existing Apport metadata reload behavior
-  ansible.builtin.include_tasks: apport.yml
-  when: (kernel_guarded_sysctl.stdout | from_json).apport_changed | bool
+- name: Preserve guard failures while reconciling published Apport metadata
+  block:
+    - name: Apply the approved sysctl decision through descriptor-bound storage
+      ansible.builtin.command:
+        argv:
+          - "{{ ansible_facts.python.executable }}"
+          - -I
+          - -c
+          - "{{ lookup('ansible.builtin.file', playbook_dir + '/../../tools/sysctl_guard.py') }}"
+        stdin: "{{ {'control': hardenops_control, 'check': ansible_check_mode} | to_json }}"
+      register: kernel_guarded_sysctl
+      changed_when: >-
+        kernel_guarded_sysctl.rc == 0 and
+        (kernel_guarded_sysctl.stdout | from_json).changed | bool
+      check_mode: false
+  always:
+    - name: Reconcile Apport without requiring successful guard output
+      ansible.builtin.include_tasks: apport.yml
+      when: hardenops_control.verification.key == 'fs.suid_dumpable'

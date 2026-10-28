@@ -14,19 +14,43 @@ from types import SimpleNamespace
 
 STATE = Path("/tmp/hardenops-guard-kernel.json")
 CALLS = Path("/tmp/hardenops-guard-calls.jsonl")
+METADATA = Path("/tmp/hardenops-guard-systemd.json")
 
 
 def fake_sysctl(argv, **kwargs):
+    if argv[:3] == ["/usr/bin/systemctl", "show", "apport.service"]:
+        metadata = json.loads(METADATA.read_text())
+        command = metadata.get("command", "")
+        dropin = "/etc/systemd/system/apport.service.d/90-hardenops-suid-dumpable.conf" if command else ""
+        return SimpleNamespace(stdout=("LoadState=loaded\nDropInPaths=" + dropin
+                                       + "\nExecStartPost=" + command + "\nNeedDaemonReload=no\n"), stderr="")
+    if argv == ["/usr/bin/systemctl", "daemon-reload"]:
+        metadata = json.loads(METADATA.read_text())
+        if metadata.pop("_fail_reload", False):
+            METADATA.write_text(json.dumps(metadata))
+            raise subprocess.CalledProcessError(1, argv, stderr="controlled metadata reload refusal")
+        path = Path("/etc/systemd/system/apport.service.d/90-hardenops-suid-dumpable.conf")
+        argv_text = path.read_text().split("ExecStartPost=", 1)[1].strip()
+        metadata.update(command="{ path=/usr/sbin/sysctl ; argv[]=" + argv_text
+                        + " ; ignore_errors=no ; status=0/0 }", reloads=metadata["reloads"] + 1)
+        METADATA.write_text(json.dumps(metadata))
+        return SimpleNamespace(stdout="", stderr="")
     if argv[:2] not in (["/usr/sbin/sysctl", "-n"], ["/usr/sbin/sysctl", "-w"]):
         raise RuntimeError("Fixture refuses every other process execution")
     values = json.loads(STATE.read_text())
     if argv[1] == "-n":
         return SimpleNamespace(stdout=values[argv[2]] + "\n", stderr="")
     key, value = argv[2].split("=", 1)
+    failure = values.pop("_fail_mode", None)
+    if failure == "before":
+        STATE.write_text(json.dumps(values))
+        raise subprocess.CalledProcessError(1, argv, stderr="controlled pre-activation refusal")
     values[key] = value
     STATE.write_text(json.dumps(values))
     with CALLS.open("a") as output:
         output.write(json.dumps(argv) + "\n")
+    if failure == "after":
+        raise subprocess.CalledProcessError(1, argv, stderr="controlled partial activation refusal")
     return SimpleNamespace(stdout=key + " = " + value + "\n", stderr="")
 
 

@@ -1,0 +1,64 @@
+---
+# Run --check after guarded_sysctl.yml has prepared the disposable fixtures.
+- name: Prove the shared role does not mutate pending state in check mode
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  environment:
+    HARDENOPS_GUARD_FIXTURES: '1'
+  vars:
+    ansible_facts:
+      python:
+        executable: /tmp/hardenops-guard-python
+    fixture_control:
+      id: bp028_r14_guard_fixture
+      level: intermediary
+      domain: filesystem
+      source:
+        document: Test fixture
+        recommendation: fixture
+      enforcement:
+        status: AUTOMATED
+      applicability:
+        os_families: [Debian, RedHat]
+      verification:
+        type: sysctl
+        key: fs.suid_dumpable
+        expected: '0'
+        accepted_values: ['0']
+        remediable_values: ['1', '2']
+    hardenops_request:
+      hardenops_version: >-
+        {{ lookup('ansible.builtin.file', playbook_dir + '/../../VERSION',
+                  lstrip=false, rstrip=false) | regex_replace('\r?\n\Z', '') }}
+      level: intermediary
+      config:
+        workload_profile: generic_server
+        network:
+          routing: false
+          ipv6_required: true
+      facts:
+        distribution: Ubuntu
+        distribution_version: '24.04'
+        os_family: Debian
+      controls: ["{{ fixture_control }}"]
+  tasks:
+    - name: Require check mode and the disposable container opt-in
+      ansible.builtin.assert:
+        that:
+          - ansible_check_mode
+          - lookup('ansible.builtin.env', 'HARDENOPS_GUARD_FIXTURES') == '1'
+    - name: Observe the pending fake runtime independently
+      ansible.builtin.import_tasks: ../../ansible/tasks/observe.yml
+    - name: Select the fresh decision
+      ansible.builtin.set_fact:
+        hardenops_control: "{{ hardenops_observation.controls[0] }}"
+    - name: Exercise the actual shared guard and metadata path in check mode
+      ansible.builtin.include_tasks: ../../ansible/roles/kernel/tasks/runtime.yml
+    - name: Require predictions without runtime activation or metadata reload
+      ansible.builtin.assert:
+        that:
+          - (kernel_guarded_sysctl.stdout | from_json).changed
+          - (kernel_apport_metadata.stdout | from_json).changed
+          - not (kernel_apport_metadata.stdout | from_json).reloaded
+          - not (kernel_apport_metadata.stdout | from_json).synchronized
