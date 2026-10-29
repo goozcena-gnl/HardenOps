@@ -26,6 +26,16 @@ def root(tmp_path):
     return tmp_path
 
 
+@pytest.fixture
+def crash_root(root):
+    if not Path("/.dockerenv").exists():
+        pytest.skip("Crash fixtures require a disposable Docker container")
+    if (not root.is_relative_to(Path("/tmp"))
+            or not root.resolve().is_relative_to(Path("/tmp").resolve())):
+        pytest.skip("Crash fixtures require a temporary directory under /tmp")
+    return root
+
+
 def policy():
     return {"id": "bp028_r14_suid_dumpable", "enforcement": "AUTOMATED",
             "verification": {"key": "fs.suid_dumpable", "expected": "0",
@@ -312,7 +322,8 @@ def worker(root, mode):
                           capture_output=True, text=True, check=False, timeout=15)
 
 
-def test_abrupt_publication_crash_recovers_in_a_new_process(root):
+def test_abrupt_publication_crash_recovers_in_a_new_process(crash_root):
+    root = crash_root
     vendor(root)
     (root / "manager.json").write_text('{"loaded":false,"reloads":0}')
     crashed = worker(root, "publication-crash")
@@ -326,7 +337,8 @@ def test_abrupt_publication_crash_recovers_in_a_new_process(root):
     assert json.loads((root / "manager.json").read_text())["reloads"] == 1
 
 
-def test_abrupt_exit_after_reload_does_not_require_an_ack_file(root):
+def test_abrupt_exit_after_reload_does_not_require_an_ack_file(crash_root):
+    root = crash_root
     installed(root)
     (root / "manager.json").write_text('{"loaded":false,"reloads":0}')
     crashed = worker(root, "reload-crash")
