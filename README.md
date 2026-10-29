@@ -164,23 +164,18 @@ both Python 3.12 and 3.13 locked controllers and full lock-graph closure. A Dock
 for real filesystem enforcement, independent checks and second-run idempotence.
 Containers also exercise read-only planning. They do not validate host kernel
 changes, SELinux semantics, bootloaders, hardware security or reboot persistence.
-The public v0.1.1 integration commit
-[`cbdc6da`](https://github.com/goozcena-gnl/HardenOps/commit/cbdc6da6bd90b1146580ba9dd77856ce5fd88c70)
-passed GitHub Actions lint, hygiene, Ubuntu/Rocky Molecule and the locked
-Python 3.12/3.13 static, container and dependency-graph checks. Unit,
-container and simulated systemd/Apport checks are separate from real-VM,
-host-kernel and genuine-reboot evidence. The workflows are supplied for the
-repository; local validation is recorded separately from remote CI.
+The workflows are supplied for the repository; local validation is recorded
+separately from remote GitHub Actions execution.
 
 ## Limitations
 
 - This is a selected control subset, not a complete ANSSI level implementation.
-- The **historical v0.1.0** one-vCPU VirtualBox labs passed local full
-  Minimal-to-Intermediary acceptance on Ubuntu 24.04.5 and Rocky 9.6,
-  including genuine reboots and 20 live tests per guest. These are not new
-  v0.1.1 VM, kernel or reboot results. See the
-  [validation record](docs/validation.md) for exact scope and limitations;
-  libvirt and other hosts are not covered by those real-VM results.
+- The historical **v0.1.0** one-vCPU VirtualBox labs passed local full
+  Minimal-to-Intermediary acceptance on Ubuntu 24.04.5 and Rocky 9.6, including
+  genuine reboots and 20 live tests per guest. These results do not qualify the
+  final integrated **v0.1.1** revision for real-VM, live-kernel, SELinux-policy
+  or reboot behavior. See the [validation record](docs/validation.md) for dated
+  evidence; libvirt and other hosts are outside those historical VM results.
 - Only owned persistent sysctl configuration is inspected. Boot-time precedence,
   service overrides and per-interface network policy need wider VM tests.
 - Filesystem audits are bounded, report their scope and may be incomplete. They
@@ -199,10 +194,13 @@ repository; local validation is recorded separately from remote CI.
   and immutable images, custom workload profiles, Kubernetes node hardening and
   additional framework mappings.
 
-The two-distribution full real-VM acceptance is historical v0.1.0 evidence.
-The v0.1.1 public CI results are a separate release gate, recorded in GitHub
-Actions history; neither those CI results nor the older VM evidence establish
-ANSSI certification or universal provider reliability.
+Local two-distribution real-VM acceptance was completed for **v0.1.0**.
+For **v0.1.1**, the recorded validation includes unit, filesystem-container and
+simulated systemd tests, plus successful GitHub Actions checks on the final
+commit and tag. Complete real-VM and reboot qualification was not repeated on
+that integrated revision. See the [release notes](https://github.com/goozcena-gnl/HardenOps/releases/tag/v0.1.1)
+and [validation record](docs/validation.md) for the separate evidence scopes.
+These results do not establish ANSSI certification or universal provider reliability.
 
 ## References
 

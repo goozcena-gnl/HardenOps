@@ -46,17 +46,15 @@ and replan rather than automatically rolling back or weakening state.
 
 When the vendor Apport service is present, the privileged core-dump control
 installs a validated, narrowly scoped drop-in through the same guarded storage.
-Loaded systemd metadata is reconciled **synchronously** in an Ansible `always`
-path, including after a partial guard failure when the controller can still run
-the task. The helper compares the protected drop-in and owned sysctl file with
-the loaded Apport command; it performs `systemctl daemon-reload` only when
-needed, then checks that the expected command is loaded. An unsuccessful reload
-or verification is a failure, not a successful reconciliation. It does not
-restart or disable Apport; the drop-in reapplies only the owned sysctl file when
-Apport starts. That startup reload relies on the root-owned canonical file and
-trusted parents remaining protected; privileged concurrent changes and full
-boot precedence remain outside this guarantee. The Python helper is streamed,
-not persistently installed on the guest.
+The shared kernel runtime tasks reconcile the owned drop-in with the loaded
+systemd command synchronously from an Ansible `always` block, including after
+a partial guard failure. Reconciliation reloads systemd metadata when needed
+and verifies the loaded command; it does not rely on a conditional handler
+notification. It does not restart or disable Apport; the drop-in reapplies only
+the owned sysctl file when Apport starts.
+That startup reload relies on the root-owned canonical file and trusted parents
+remaining protected; changes by root and full boot precedence remain outside this
+guarantee. The Python helper is streamed, not persistently installed on the guest.
 Permission changes intersect existing bits with the maximum allowed mode,
 preserving a stricter mode.
 
