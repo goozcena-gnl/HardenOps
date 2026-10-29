@@ -1,6 +1,6 @@
 # HardenOps
 
-**Version 0.1.0** — an Ansible-based Linux hardening lab that implements and
+**Version 0.1.1** — an Ansible-based Linux hardening lab that implements and
 verifies selected ANSSI-BP-028 controls, with an explicit plan and traceable
 security evidence.
 

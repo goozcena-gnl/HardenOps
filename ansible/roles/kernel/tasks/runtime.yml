@@ -1,55 +1,22 @@
 ---
-- name: Recheck the owned sysctl path immediately before mutation
-  ansible.builtin.stat:
-    path: "{{ hardenops_control.observed.persistence.path }}"
-    follow: false
-  register: kernel_persistence
-
-- name: Refuse an unsafe owned sysctl path
-  ansible.builtin.assert:
-    that:
-      - not kernel_persistence.stat.exists or kernel_persistence.stat.isreg | default(false)
-      - not kernel_persistence.stat.islnk | default(false)
-    fail_msg: The owned sysctl path must be absent or a regular file, never a symbolic link.
-
-- name: Recheck the legacy owned path before migration
-  ansible.builtin.stat:
-    path: "{{ hardenops_control.observed.persistence.legacy.path }}"
-    follow: false
-  register: kernel_legacy
-
-- name: Refuse unsafe legacy persistence migration
-  ansible.builtin.assert:
-    that:
-      - not kernel_legacy.stat.exists or kernel_legacy.stat.isreg | default(false)
-      - not kernel_legacy.stat.islnk | default(false)
-      - not kernel_legacy.stat.exists or kernel_legacy.stat.uid == 0
-      - not kernel_legacy.stat.exists or kernel_legacy.stat.mode[-2] in ['0', '1', '4', '5']
-      - not kernel_legacy.stat.exists or kernel_legacy.stat.mode[-1] in ['0', '1', '4', '5']
-
-- name: Persist and activate the required or stronger accepted sysctl value
-  ansible.posix.sysctl:
-    name: "{{ hardenops_control.verification.key }}"
-    value: "{{ hardenops_control.desired | string }}"
-    state: present
-    sysctl_file: "{{ hardenops_control.observed.persistence.path }}"
-    sysctl_set: true
-    reload: true
-
-- name: Protect the owned persistent sysctl file
-  ansible.builtin.file:
-    path: "{{ hardenops_control.observed.persistence.path }}"
-    state: file
-    owner: root
-    group: root
-    mode: "{{ hardenops_control.desired_persistence_mode }}"
-
-- name: Remove only the validated legacy control file after migration
-  ansible.builtin.file:
-    path: "{{ hardenops_control.observed.persistence.legacy.path }}"
-    state: absent
-  when: kernel_legacy.stat.exists
-
-- name: Preserve the privileged core-dump setting when Apport starts
-  ansible.builtin.include_tasks: apport.yml
-  when: hardenops_control.observed.persistence.apport.required
+# One guarded process owns validation-to-use, canonical persistence, explicit
+# key/value activation, legacy migration and the conditional Apport drop-in.
+- name: Preserve guard failures while reconciling published Apport metadata
+  block:
+    - name: Apply the approved sysctl decision through descriptor-bound storage
+      ansible.builtin.command:
+        argv:
+          - "{{ ansible_facts.python.executable }}"
+          - -I
+          - -c
+          - "{{ lookup('ansible.builtin.file', playbook_dir + '/../../tools/sysctl_guard.py') }}"
+        stdin: "{{ {'control': hardenops_control, 'check': ansible_check_mode} | to_json }}"
+      register: kernel_guarded_sysctl
+      changed_when: >-
+        kernel_guarded_sysctl.rc == 0 and
+        (kernel_guarded_sysctl.stdout | from_json).changed | bool
+      check_mode: false
+  always:
+    - name: Reconcile Apport without requiring successful guard output
+      ansible.builtin.include_tasks: apport.yml
+      when: hardenops_control.verification.key == 'fs.suid_dumpable'

@@ -16,6 +16,12 @@ import sys
 from collections import Counter
 from pathlib import Path
 
+try:
+    from tools.sysctl_guard import apport_content, assignment, snapshot_file, token
+except ModuleNotFoundError:
+    # Direct script execution, or the controller-streamed module on the target.
+    from sysctl_guard import apport_content, assignment, snapshot_file, token
+
 LEVELS = {"minimal": 0, "intermediary": 1, "enhanced": 2, "high": 3}
 STATUSES = {
     "AUTOMATED", "VERIFIED", "AUDIT_ONLY", "MANUAL", "FUTURE",
@@ -34,6 +40,11 @@ def validate_input(payload):
     """Fail closed on malformed policy, profile, network assumptions, or OS."""
     if not isinstance(payload, dict):
         raise ValueError("Input must be a JSON object")
+    # Stable controller release only: canonical ASCII MAJOR.MINOR.PATCH.
+    version = payload.get("hardenops_version")
+    if not isinstance(version, str) or not re.fullmatch(
+            r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)", version):
+        raise ValueError("hardenops_version must be a canonical MAJOR.MINOR.PATCH string")
     level = payload.get("level")
     if level not in ("minimal", "intermediary"):
         raise ValueError("Only minimal and intermediary profiles are implemented in v0.1")
@@ -157,6 +168,9 @@ class HostReader:
     def metadata(self, absolute):
         return self.path(absolute).lstat()
 
+    def read_owned(self, absolute, missing_ok=False):
+        return snapshot_file(absolute, root=self.root, missing_ok=missing_ok)
+
     def text(self, absolute, limit=256_000):
         path = self.path(absolute)
         # Do not follow final symlinks in configuration or sensitive account files.
@@ -198,34 +212,11 @@ def persistence_evidence(reader, control_id, key, prefix="99-z-hardenops"):
     path = "/etc/sysctl.d/%s-%s.conf" % (prefix, control_id)
     evidence = {"path": path, "value": None, "safe_file": False, "unsafe_path": False, "exists": False}
     try:
-        metadata = reader.metadata(path)
-        evidence["exists"] = True
-        evidence.update(mode=format(stat.S_IMODE(metadata.st_mode), "04o"), uid=metadata.st_uid)
-        if not stat.S_ISREG(metadata.st_mode):
-            evidence["unsafe_path"] = True
-            evidence["reason"] = "Owned persistence path is not a regular file"
-            return evidence
-        evidence["safe_file"] = metadata.st_uid == 0 and not (metadata.st_mode & 0o022)
-        assignments = []
-        for line in reader.text(path).splitlines():
-            line = line.split("#", 1)[0].split(";", 1)[0].strip()
-            if not line:
-                continue
-            if "=" not in line:
-                evidence["unsafe_path"] = True
-                evidence["reason"] = "Unexpected persistence content"
-                return evidence
-            name, value = (part.strip() for part in line.split("=", 1))
-            if name != key:
-                evidence["unsafe_path"] = True
-                evidence["reason"] = "Unexpected key in owned persistence file"
-                return evidence
-            assignments.append(value)
-        if len(assignments) == 1:
-            evidence["value"] = assignments[0]
-        else:
-            evidence["unsafe_path"] = True
-            evidence["reason"] = "Expected exactly one owned assignment"
+        snapshot = reader.read_owned(path)
+        evidence.update(snapshot=token(snapshot), exists=snapshot["exists"])
+        if snapshot["exists"]:
+            evidence.update(mode=snapshot["mode"], uid=snapshot["uid"], safe_file=True)
+            evidence["value"] = assignment(snapshot["content"], key)
     except OSError as exc:
         evidence["reason"] = type(exc).__name__
         evidence["unsafe_path"] = evidence["exists"] or not isinstance(exc, FileNotFoundError)
@@ -242,29 +233,20 @@ def apport_evidence(reader, control_id, key, sysctl_file):
             except FileNotFoundError:
                 pass
     path = "/etc/systemd/system/apport.service.d/90-hardenops-suid-dumpable.conf"
-    content = "[Service]\nExecStartPost=/usr/sbin/sysctl -p %s\n" % sysctl_file
+    content = apport_content(sysctl_file)
     evidence = {"required": required, "path": path, "content": content,
                 "safe_file": not required, "unsafe_path": False, "mode": "0644"}
     if not required:
         return evidence
     try:
-        parent = reader.metadata("/etc/systemd/system/apport.service.d")
-        if not stat.S_ISDIR(parent.st_mode) or parent.st_uid != 0 or parent.st_mode & 0o022:
-            evidence["unsafe_path"] = True
-    except FileNotFoundError:
-        pass
-    try:
-        metadata = reader.metadata(path)
-        evidence["mode"] = format(stat.S_IMODE(metadata.st_mode) & 0o644, "04o")
-        if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != 0
-                or metadata.st_mode & 0o022):
-            evidence["unsafe_path"] = True
-        elif reader.text(path) != content:
-            evidence["unsafe_path"] = True
-        else:
-            evidence["safe_file"] = True
-    except FileNotFoundError:
-        pass
+        snapshot = reader.read_owned(path, missing_ok=True)
+        evidence["snapshot"] = token(snapshot)
+        if snapshot["exists"]:
+            evidence["mode"] = format(int(snapshot["mode"], 8) & 0o644, "04o")
+            if snapshot["content"] != content:
+                evidence["unsafe_path"] = True
+            else:
+                evidence["safe_file"] = True
     except OSError:
         evidence["unsafe_path"] = True
     return evidence
@@ -290,6 +272,7 @@ def inspect_sysctl(control, reader):
     if verification.get("remediable_range") == [1, 511]:
         known += [str(value) for value in range(1, 512)]
     if (persistent["unsafe_path"] or runtime not in known or legacy["unsafe_path"]
+            or (persistent["exists"] and not persistent["safe_file"])
             or (legacy["exists"] and not legacy["safe_file"]) or apport["unsafe_path"]
             or (legacy["value"] is not None and legacy["value"] not in known)
             or (persistent["value"] is not None and persistent["value"] not in known)):
@@ -505,7 +488,7 @@ def inspect(payload, reader=None):
             result["needs_change"] = False
         results.append(result)
     return {"schema_version": 1, "host": payload.get("host") or payload["facts"].get("host") or socket.gethostname(),
-            "hardenops_version": "0.1.0", "catalogue": payload.get("catalogue", {}),
+            "hardenops_version": payload["hardenops_version"], "catalogue": payload.get("catalogue", {}),
             "facts": payload["facts"], "profile": payload["level"], "config": payload["config"],
             "generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "verification_scope": "Current runtime, sensitive file metadata and HardenOps-owned persistence files; full boot-time sysctl precedence is not proven",

@@ -28,6 +28,17 @@ configuration. Applying an automated control migrates its legacy
 stronger accepted values and restrictive permissions. Unsafe paths or unknown
 values require operator review and are not changed.
 
+Current and legacy persistence are read through checked directory/file descriptors.
+Every existing parent must be a real root-owned directory without group/other
+write access; owned files must be regular, root-owned, single-link and similarly
+protected. Enforcement compares the fresh runtime and storage identities/content
+with the inspection before publishing a canonical single-key file. Changed
+preconditions stop the operation rather than applying a stale desired value or
+deleting a replaced legacy file. Restrictive modes are set before publication.
+The runtime is activated by explicit key/value, never by reloading guest content.
+These checks are not a transaction against concurrent privileged writers; a
+partial failure requires fresh verification and a new plan, not automatic undo.
+
 When the vendor Apport service is present, the privileged core-dump control also
 owns a narrowly scoped service drop-in. It reapplies only its managed sysctl file
 after Apport starts, because Apport otherwise sets `fs.suid_dumpable=2` after

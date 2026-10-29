@@ -1,0 +1,236 @@
+---
+# Explicit disposable-container fixture; fake kernel only, no real sysctl call.
+- name: Test the actual streamed inspector and shared sysctl role
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  environment:
+    HARDENOPS_GUARD_FIXTURES: '1'
+  vars:
+    ansible_facts:
+      python:
+        executable: /tmp/hardenops-guard-python
+    fixture_control:
+      id: bp028_r14_guard_fixture
+      level: intermediary
+      domain: filesystem
+      source:
+        document: Test fixture
+        recommendation: fixture
+      enforcement:
+        status: AUTOMATED
+      applicability:
+        os_families: [Debian, RedHat]
+      verification:
+        type: sysctl
+        key: fs.suid_dumpable
+        expected: '0'
+        accepted_values: ['0']
+        remediable_values: ['1', '2']
+    hardenops_request:
+      hardenops_version: >-
+        {{ lookup('ansible.builtin.file', playbook_dir + '/../../VERSION',
+                  lstrip=false, rstrip=false) | regex_replace('\r?\n\Z', '') }}
+      level: intermediary
+      config:
+        workload_profile: generic_server
+        network:
+          routing: false
+          ipv6_required: true
+      facts:
+        distribution: Ubuntu
+        distribution_version: '24.04'
+        os_family: Debian
+      controls: ["{{ fixture_control }}"]
+  handlers:
+    - name: Record the fixture systemd metadata reload
+      listen: hardenops reload systemd metadata
+      ansible.builtin.set_fact:
+        fixture_metadata_reloaded: true
+  tasks:
+    - name: Confirm this is the explicitly selected disposable container
+      ansible.builtin.stat:
+        path: /.dockerenv
+      register: fixture_container
+    - name: Refuse fixture execution outside a disposable container
+      ansible.builtin.assert:
+        that:
+          - fixture_container.stat.exists
+          - lookup('ansible.builtin.env', 'HARDENOPS_GUARD_FIXTURES') == '1'
+    - name: Install the interpreter fixture only in the disposable container
+      ansible.builtin.copy:
+        dest: /tmp/hardenops-guard-python
+        content: "{{ lookup('ansible.builtin.file', playbook_dir + '/guarded_sysctl_python.py') }}"
+        mode: '0700'
+    - name: Initialize the fake kernel
+      ansible.builtin.copy:
+        dest: /tmp/hardenops-guard-kernel.json
+        content: '{"fs.suid_dumpable": "2"}'
+        mode: '0600'
+    - name: Initialize independently loaded fake systemd metadata
+      ansible.builtin.copy:
+        dest: /tmp/hardenops-guard-systemd.json
+        content: '{"command": "", "reloads": 0}'
+        mode: '0600'
+    - name: Ensure the disposable configuration directories exist
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - /etc/sysctl.d
+        - /etc/systemd/system
+        - /usr/lib/systemd/system
+    - name: Install a disposable vendor unit for applicability
+      ansible.builtin.copy:
+        dest: /usr/lib/systemd/system/apport.service
+        content: "[Service]\n"
+        mode: '0644'
+    - name: Observe the fake kernel through the actual streamed inspector
+      ansible.builtin.import_tasks: ../../ansible/tasks/observe.yml
+    - name: Select the freshly observed control
+      ansible.builtin.set_fact:
+        hardenops_control: "{{ hardenops_observation.controls[0] }}"
+    - name: Require release provenance from the controller request
+      ansible.builtin.assert:
+        that: hardenops_observation.hardenops_version == hardenops_request.hardenops_version
+    - name: Execute the shared production role with fake kernel operations
+      ansible.builtin.include_tasks: ../../ansible/roles/kernel/tasks/runtime.yml
+    - name: Require initial persistence and Apport changes
+      ansible.builtin.assert:
+        that:
+          - (kernel_guarded_sysctl.stdout | from_json).changed
+          - (kernel_guarded_sysctl.stdout | from_json).apport_changed
+    - name: Flush any existing fixture handlers
+      ansible.builtin.meta: flush_handlers
+    - name: Read the synchronous fixture metadata state
+      ansible.builtin.slurp:
+        src: /tmp/hardenops-guard-systemd.json
+      register: fixture_metadata
+    - name: Confirm the production role reconciled metadata directly
+      ansible.builtin.assert:
+        that:
+          - (fixture_metadata.content | b64decode | from_json).reloads == 1
+          - not (fixture_metadata_reloaded | default(false))
+    - name: Observe fresh independent evidence
+      ansible.builtin.import_tasks: ../../ansible/tasks/observe.yml
+    - name: Require independent PASS
+      ansible.builtin.assert:
+        that: hardenops_observation.controls[0].result == 'PASS'
+    - name: Select the fresh decision for idempotence
+      ansible.builtin.set_fact:
+        hardenops_control: "{{ hardenops_observation.controls[0] }}"
+    - name: Repeat the exact shared production path
+      ansible.builtin.include_tasks: ../../ansible/roles/kernel/tasks/runtime.yml
+    - name: Require zero changes on the second application
+      ansible.builtin.assert:
+        that:
+          - not (kernel_guarded_sysctl.stdout | from_json).changed
+          - not (kernel_guarded_sysctl.stdout | from_json).apport_changed
+          - not (kernel_apport_metadata.stdout | from_json).changed
+    - name: Simulate controller loss before a metadata reconciliation
+      ansible.builtin.copy:
+        dest: /tmp/hardenops-guard-systemd.json
+        content: '{"command": "", "reloads": 1}'
+        mode: '0600'
+    - name: Recover through the filesystem role despite a PASS observation
+      ansible.builtin.include_tasks: ../../ansible/roles/filesystem/tasks/main.yml
+    - name: Require independent recovery outside the needs_change filter
+      ansible.builtin.assert:
+        that: (kernel_apport_metadata.stdout | from_json).reloaded
+    - name: Repeat the filesystem role for synchronization idempotence
+      ansible.builtin.include_tasks: ../../ansible/roles/filesystem/tasks/main.yml
+    - name: Require no reload when the loaded command is synchronized
+      ansible.builtin.assert:
+        that: not (kernel_apport_metadata.stdout | from_json).changed
+    - name: Read the fake activation audit
+      ansible.builtin.slurp:
+        src: /tmp/hardenops-guard-calls.jsonl
+      register: fixture_calls
+    - name: Require a single explicit key activation with no file reload
+      ansible.builtin.assert:
+        that:
+          - (fixture_calls.content | b64decode).splitlines() | length == 1
+          - (fixture_calls.content | b64decode | from_json) == ['/usr/sbin/sysctl', '-w', 'fs.suid_dumpable=0']
+    - name: Remove only this disposable fixture's owned publications
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/systemd/system/apport.service.d/90-hardenops-suid-dumpable.conf
+        - /etc/sysctl.d/99-z-hardenops-bp028_r14_guard_fixture.conf
+    - name: Inject a runtime failure after drop-in publication
+      ansible.builtin.copy:
+        dest: /tmp/hardenops-guard-kernel.json
+        content: '{"fs.suid_dumpable": "2", "_fail_mode": "before"}'
+        mode: '0600'
+    - name: Reset the simulated loaded metadata independently of disk
+      ansible.builtin.copy:
+        dest: /tmp/hardenops-guard-systemd.json
+        content: '{"command": "", "reloads": 0}'
+        mode: '0600'
+    - name: Observe before the controlled guard failure
+      ansible.builtin.import_tasks: ../../ansible/tasks/observe.yml
+    - name: Select the failing decision
+      ansible.builtin.set_fact:
+        hardenops_control: "{{ hardenops_observation.controls[0] }}"
+    - name: Prove the production path still fails while always reconciles
+      block:
+        - name: Invoke the shared role with the controlled runtime refusal
+          ansible.builtin.include_tasks: ../../ansible/roles/kernel/tasks/runtime.yml
+        - name: Reject a false successful guard result
+          ansible.builtin.fail:
+            msg: The controlled runtime failure must not become success.
+      rescue:
+        - name: Require the original refusal and successful metadata compensation
+          ansible.builtin.assert:
+            that:
+              - kernel_guarded_sysctl.rc == 2
+              - kernel_guarded_sysctl.stdout == ''
+              - (kernel_apport_metadata.stdout | from_json).reloaded
+    - name: Observe again in a new target process after the failure
+      ansible.builtin.import_tasks: ../../ansible/tasks/observe.yml
+    - name: Select the retry decision
+      ansible.builtin.set_fact:
+        hardenops_control: "{{ hardenops_observation.controls[0] }}"
+    - name: Retry the real production path after compensation
+      ansible.builtin.include_tasks: ../../ansible/roles/kernel/tasks/runtime.yml
+    - name: Require successful retry with no redundant metadata reload
+      ansible.builtin.assert:
+        that:
+          - kernel_guarded_sysctl.rc == 0
+          - not (kernel_guarded_sysctl.stdout | from_json).apport_changed
+          - not (kernel_apport_metadata.stdout | from_json).changed
+    - name: Make only the simulated manager stale and inject reload failure
+      ansible.builtin.copy:
+        dest: /tmp/hardenops-guard-systemd.json
+        content: '{"command": "", "reloads": 0, "_fail_reload": true}'
+        mode: '0600'
+    - name: Observe PASS state before the independent metadata failure
+      ansible.builtin.import_tasks: ../../ansible/tasks/observe.yml
+    - name: Require a metadata error to fail the filesystem role
+      block:
+        - name: Reconcile the stale manager through the PASS recovery path
+          ansible.builtin.include_tasks: ../../ansible/roles/filesystem/tasks/main.yml
+        - name: Reject a false successful metadata result
+          ansible.builtin.fail:
+            msg: The controlled reload failure must not become success.
+      rescue:
+        - name: Require reload refusal without success JSON
+          ansible.builtin.assert:
+            that:
+              - kernel_apport_metadata.rc == 2
+              - kernel_apport_metadata.stdout == ''
+    - name: Retry filesystem recovery after the reload refusal
+      ansible.builtin.include_tasks: ../../ansible/roles/filesystem/tasks/main.yml
+    - name: Require successful eventual metadata reconciliation
+      ansible.builtin.assert:
+        that: (kernel_apport_metadata.stdout | from_json).reloaded
+    - name: Exercise supported existing-hook remediation variants
+      ansible.builtin.include_tasks: apport_existing_persistence.yml
+      loop:
+        - "fs.suid_dumpable = 2\n"
+        - "# safe existing persistence\nfs.suid_dumpable=0\n"
+        - null
+      loop_control:
+        loop_var: fixture_existing_content

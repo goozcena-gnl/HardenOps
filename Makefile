@@ -11,7 +11,7 @@ export HARDENOPS_TEST_IMAGE := $(IMAGE)
 .PHONY: help install deploy status inventory plan harden verify destroy lint syntax validate test molecule hygiene
 
 help:
-	@echo "HardenOps 0.1.0 — disposable Linux hardening lab"
+	@echo "HardenOps 0.1.1 — disposable Linux hardening lab"
 	@echo "make install                         Install SHA256-locked controller tools in the active venv"
 	@echo "make deploy DISTRO=ubuntu2404        Boot Ubuntu 24.04 (default PROVIDER=libvirt)"
 	@echo "make deploy DISTRO=rocky9            Boot Rocky Linux 9"

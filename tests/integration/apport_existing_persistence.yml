@@ -1,0 +1,34 @@
+---
+- name: Prepare the safe existing fixture persistence
+  ansible.builtin.copy:
+    dest: /etc/sysctl.d/99-z-hardenops-bp028_r14_guard_fixture.conf
+    content: "{{ fixture_existing_content }}"
+    mode: '0644'
+  when: fixture_existing_content is not none
+- name: Prepare missing fixture persistence
+  ansible.builtin.file:
+    path: /etc/sysctl.d/99-z-hardenops-bp028_r14_guard_fixture.conf
+    state: absent
+  when: fixture_existing_content is none
+- name: Prepare remediable fake runtime with an existing hook
+  ansible.builtin.copy:
+    dest: /tmp/hardenops-guard-kernel.json
+    content: '{"fs.suid_dumpable": "2"}'
+    mode: '0600'
+- name: Observe the supported remediation state
+  ansible.builtin.import_tasks: ../../ansible/tasks/observe.yml
+- name: Require an actionable supported control
+  ansible.builtin.assert:
+    that:
+      - hardenops_observation.controls[0].result == 'FAIL'
+      - hardenops_observation.controls[0].needs_change
+- name: Apply the real filesystem role without a premature metadata refusal
+  ansible.builtin.include_tasks: ../../ansible/roles/filesystem/tasks/main.yml
+- name: Observe successful remediation
+  ansible.builtin.import_tasks: ../../ansible/tasks/observe.yml
+- name: Require repaired persistence and no redundant reload
+  ansible.builtin.assert:
+    that:
+      - hardenops_observation.controls[0].result == 'PASS'
+      - kernel_guarded_sysctl.rc == 0
+      - not (kernel_apport_metadata.stdout | from_json).changed
