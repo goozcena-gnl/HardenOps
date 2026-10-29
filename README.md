@@ -170,11 +170,12 @@ separately from remote GitHub Actions execution.
 ## Limitations
 
 - This is a selected control subset, not a complete ANSSI level implementation.
-- The adopted one-vCPU VirtualBox labs passed local full Minimal-to-Intermediary
-  acceptance on Ubuntu 24.04.5 and Rocky 9.6, including genuine reboots and 20
-  live tests per guest. See the [validation record](docs/validation.md) for exact
-  versions, scope and retained limitations; libvirt and other hosts are not covered
-  by those real-VM results.
+- The historical **v0.1.0** one-vCPU VirtualBox labs passed local full
+  Minimal-to-Intermediary acceptance on Ubuntu 24.04.5 and Rocky 9.6, including
+  genuine reboots and 20 live tests per guest. These results do not qualify the
+  final integrated **v0.1.1** revision for real-VM, live-kernel, SELinux-policy
+  or reboot behavior. See the [validation record](docs/validation.md) for dated
+  evidence; libvirt and other hosts are outside those historical VM results.
 - Only owned persistent sysctl configuration is inspected. Boot-time precedence,
   service overrides and per-interface network policy need wider VM tests.
 - Filesystem audits are bounded, report their scope and may be incomplete. They
@@ -193,10 +194,13 @@ separately from remote GitHub Actions execution.
   and immutable images, custom workload profiles, Kubernetes node hardening and
   additional framework mappings.
 
-Local two-distribution real-VM acceptance is complete. Remote GitHub Actions
-validation is a separate release gate, with successful runs recorded in GitHub
-Actions history. Local real-VM evidence and remote CI do not establish ANSSI
-certification or universal provider reliability.
+Local two-distribution real-VM acceptance was completed for **v0.1.0**.
+For **v0.1.1**, the recorded validation includes unit, filesystem-container and
+simulated systemd tests, plus successful GitHub Actions checks on the final
+commit and tag. Complete real-VM and reboot qualification was not repeated on
+that integrated revision. See the [release notes](https://github.com/goozcena-gnl/HardenOps/releases/tag/v0.1.1)
+and [validation record](docs/validation.md) for the separate evidence scopes.
+These results do not establish ANSSI certification or universal provider reliability.
 
 ## References
 

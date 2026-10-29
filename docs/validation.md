@@ -927,3 +927,29 @@ Python 3.12/3.13 outcomes, container/VM evidence scope and the human decision on
 remaining risks. No final v0.1.1 validation, merge, tag or publication is recorded
 here. These historical results must not be substituted for checks on the final
 integrated revision.
+
+
+## 2026-10-29 — v0.1.1 publication and validation scope
+
+HardenOps v0.1.1 is published. Public [PR #21](https://github.com/goozcena-gnl/HardenOps/pull/21)
+was squash-merged as `cbdc6da6bd90b1146580ba9dd77856ce5fd88c70`, tree
+`8f82cd57b5b8e86f93a29011a6bd4ab0f06b3983`. The
+[GitHub Release](https://github.com/goozcena-gnl/HardenOps/releases/tag/v0.1.1)
+and [security advisory](https://github.com/goozcena-gnl/HardenOps/security/advisories/GHSA-xj55-h28x-8766)
+are public. The annotated v0.1.1 tag is not cryptographically signed.
+
+The final main commit passed ten automatic GitHub checks and the separate
+Python 3.12/3.13 lock-graph validation jobs; both automatic tag workflows also
+succeeded. Lock recompilation verified the pinned graph without upgrading it;
+it was not an audit of the newest dependency versions. Repeated checks on the
+same scenarios do not add independent scenario coverage, and skips are not passes.
+
+The publication sequence and its post-publication documentary and integrity
+review are complete, with verdict `CLOSED_WITH_RESERVATIONS`. This review did
+not execute new host tests. Historical v0.1.0 real-VM results and the dated
+preparation records above remain unchanged. Unit, filesystem-container and
+simulated systemd evidence for v0.1.1 does not establish complete real-VM,
+live-kernel, SELinux-policy or reboot qualification of the integrated release.
+The historical global Ruff diagnostics and the limits on concurrency, ACLs,
+xattrs and metadata remain documented. Release and advisory publication alone
+do not establish that all dependency alerts are resolved.

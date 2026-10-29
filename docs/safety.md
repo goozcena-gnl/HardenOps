@@ -44,10 +44,14 @@ configuration writers. Run one configuration writer at a time. A later failure
 can leave safe persistence installed or a key activated; review fresh evidence
 and replan rather than automatically rolling back or weakening state.
 
-When the vendor Apport service is
-present, the privileged core-dump control installs a validated, narrowly scoped
-drop-in through the same guarded storage and reloads systemd metadata through its handler. It does not restart or
-disable Apport; the drop-in reapplies only the owned sysctl file when Apport starts.
+When the vendor Apport service is present, the privileged core-dump control
+installs a validated, narrowly scoped drop-in through the same guarded storage.
+The shared kernel runtime tasks reconcile the owned drop-in with the loaded
+systemd command synchronously from an Ansible `always` block, including after
+a partial guard failure. Reconciliation reloads systemd metadata when needed
+and verifies the loaded command; it does not rely on a conditional handler
+notification. It does not restart or disable Apport; the drop-in reapplies only
+the owned sysctl file when Apport starts.
 That startup reload relies on the root-owned canonical file and trusted parents
 remaining protected; changes by root and full boot precedence remain outside this
 guarantee. The Python helper is streamed, not persistently installed on the guest.
