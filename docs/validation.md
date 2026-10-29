@@ -927,3 +927,28 @@ Python 3.12/3.13 outcomes, container/VM evidence scope and the human decision on
 remaining risks. No final v0.1.1 validation, merge, tag or publication is recorded
 here. These historical results must not be substituted for checks on the final
 integrated revision.
+
+## 2026-10-29 — v0.1.1 publication; validation scope and reservations
+
+The stable [v0.1.1 Release](https://github.com/goozcena-gnl/HardenOps/releases/tag/v0.1.1)
+was published from the protected `main` integration commit
+[`cbdc6da6bd90b1146580ba9dd77856ce5fd88c70`](https://github.com/goozcena-gnl/HardenOps/commit/cbdc6da6bd90b1146580ba9dd77856ce5fd88c70),
+whose Git tree is `8f82cd57b5b8e86f93a29011a6bd4ab0f06b3983`.
+Public [PR #21](https://github.com/goozcena-gnl/HardenOps/pull/21) was
+squash-merged after its required checks passed. The published
+[GHSA-xj55-h28x-8766](https://github.com/goozcena-gnl/HardenOps/security/advisories/GHSA-xj55-h28x-8766)
+identifies 0.1.0 as affected and 0.1.1 as fixed.
+
+All 16 GitHub Actions check runs observed on this exact integration commit
+completed successfully. They cover repository lint/hygiene, Ubuntu and Rocky
+Molecule, and Python 3.12/3.13 locked static/container/lock-graph validation.
+The earlier local A-01 and B-01 tests, simulated sysctl and systemd/Apport
+operations, and filesystem-container evidence remain separately scoped.
+They do not prove full v0.1.1 real-guest kernel behavior, provider reliability,
+reboot persistence, arbitrary SELinux policies, or hostile-root concurrency.
+
+The complete Ubuntu and Rocky real-VM acceptance documented earlier in this
+file belongs to **v0.1.0**. It is not reassigned to v0.1.1. Publication is
+complete, with the documented evidence boundaries and residual risks retained;
+the 2026-10-24 preparation entry above remains an unchanged historical record.
+No production hardening or ANSSI certification claim follows from these checks.

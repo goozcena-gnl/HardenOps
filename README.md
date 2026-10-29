@@ -164,17 +164,23 @@ both Python 3.12 and 3.13 locked controllers and full lock-graph closure. A Dock
 for real filesystem enforcement, independent checks and second-run idempotence.
 Containers also exercise read-only planning. They do not validate host kernel
 changes, SELinux semantics, bootloaders, hardware security or reboot persistence.
-The workflows are supplied for the repository; local validation is recorded
-separately from remote GitHub Actions execution.
+The public v0.1.1 integration commit
+[`cbdc6da`](https://github.com/goozcena-gnl/HardenOps/commit/cbdc6da6bd90b1146580ba9dd77856ce5fd88c70)
+passed GitHub Actions lint, hygiene, Ubuntu/Rocky Molecule and the locked
+Python 3.12/3.13 static, container and dependency-graph checks. Unit,
+container and simulated systemd/Apport checks are separate from real-VM,
+host-kernel and genuine-reboot evidence. The workflows are supplied for the
+repository; local validation is recorded separately from remote CI.
 
 ## Limitations
 
 - This is a selected control subset, not a complete ANSSI level implementation.
-- The adopted one-vCPU VirtualBox labs passed local full Minimal-to-Intermediary
-  acceptance on Ubuntu 24.04.5 and Rocky 9.6, including genuine reboots and 20
-  live tests per guest. See the [validation record](docs/validation.md) for exact
-  versions, scope and retained limitations; libvirt and other hosts are not covered
-  by those real-VM results.
+- The **historical v0.1.0** one-vCPU VirtualBox labs passed local full
+  Minimal-to-Intermediary acceptance on Ubuntu 24.04.5 and Rocky 9.6,
+  including genuine reboots and 20 live tests per guest. These are not new
+  v0.1.1 VM, kernel or reboot results. See the
+  [validation record](docs/validation.md) for exact scope and limitations;
+  libvirt and other hosts are not covered by those real-VM results.
 - Only owned persistent sysctl configuration is inspected. Boot-time precedence,
   service overrides and per-interface network policy need wider VM tests.
 - Filesystem audits are bounded, report their scope and may be incomplete. They
@@ -193,10 +199,10 @@ separately from remote GitHub Actions execution.
   and immutable images, custom workload profiles, Kubernetes node hardening and
   additional framework mappings.
 
-Local two-distribution real-VM acceptance is complete. Remote GitHub Actions
-validation is a separate release gate, with successful runs recorded in GitHub
-Actions history. Local real-VM evidence and remote CI do not establish ANSSI
-certification or universal provider reliability.
+The two-distribution full real-VM acceptance is historical v0.1.0 evidence.
+The v0.1.1 public CI results are a separate release gate, recorded in GitHub
+Actions history; neither those CI results nor the older VM evidence establish
+ANSSI certification or universal provider reliability.
 
 ## References
 
